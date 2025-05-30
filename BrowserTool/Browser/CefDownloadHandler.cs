@@ -12,7 +12,7 @@ namespace BrowserTool.Browser
         public event Action<string> OnBeforeDownloadFired;
         public event Action<string> OnDownloadUpdatedFired;
 
-        public void OnBeforeDownload(IWebBrowser browserControl, IBrowser browser, DownloadItem downloadItem, IBeforeDownloadCallback callback)
+        public bool OnBeforeDownload(IWebBrowser browserControl, IBrowser browser, DownloadItem downloadItem, IBeforeDownloadCallback callback)
         {
             // 下载前回调，可自定义保存路径
             Application.Current.Dispatcher.Invoke(() =>
@@ -35,6 +35,8 @@ namespace BrowserTool.Browser
                 string path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", downloadItem.SuggestedFileName);
                 callback.Continue(path, showDialog: true);
             }
+            // 返回true表示下载应该继续
+            return true;
         }
 
         public void OnDownloadUpdated(IWebBrowser browserControl, IBrowser browser, DownloadItem downloadItem, IDownloadItemCallback callback)

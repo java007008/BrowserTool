@@ -62,6 +62,19 @@ namespace BrowserTool
                 if (Cef.IsInitialized != true)
                 {
                     var settings = new CefSettings();
+                    
+                    // Set cache path in user data directory
+                    string cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BrowserTool", "CEF");
+                    if (!Directory.Exists(cachePath))
+                    {
+                        Directory.CreateDirectory(cachePath);
+                    }
+                    settings.CachePath = cachePath;
+                    
+                    // Additional settings for v136.1.40
+                    settings.PersistSessionCookies = true;
+                    
+                    // Initialize CEF with the specified settings
                     Cef.Initialize(settings);
                 }
                 InitializeComponent();
