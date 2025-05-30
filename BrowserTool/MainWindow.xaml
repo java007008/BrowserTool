@@ -1,0 +1,626 @@
+﻿<Window x:Class="BrowserTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:BrowserTool"
+        xmlns:controls="clr-namespace:BrowserTool.Controls"
+        xmlns:browser="clr-namespace:BrowserTool.Browser"
+        xmlns:converters="clr-namespace:BrowserTool.Converters"
+        mc:Ignorable="d"
+        Title="Browser Tool" Height="700" Width="1200"
+        WindowStyle="None" AllowsTransparency="True" Background="#1e1e1e"
+        BorderThickness="0"
+        BorderBrush="Transparent"
+        Icon="{StaticResource AppIcon}"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <local:IsTreeViewRootConverter x:Key="IsTreeViewRootConverter"/>
+        <!-- 布尔值转可见性转换器（用于界面元素的显示与隐藏） -->
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <!-- 抽屉开关按钮的自定义样式（汉堡菜单按钮） -->
+        <Style x:Key="DrawerToggleButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <Grid>
+                                <Path Data="M3,18H21V16H3V18M3,13H21V11H3V13M3,6V8H21V6H3Z" 
+                                      Fill="#757575" 
+                                      Width="24" 
+                                      Height="24"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F5F5F5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 侧边抽屉面板的自定义样式 -->
+        <Style x:Key="DrawerStyle" TargetType="Grid">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="1" Direction="270" Opacity="0.2"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 左侧树形菜单的自定义样式 -->
+        <Style x:Key="CustomTreeViewStyle" TargetType="TreeView">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#3c3c3c"/>
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeView">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ScrollViewer Padding="{TemplateBinding Padding}" Focusable="False">
+                                <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 树形菜单项的自定义样式，包含原生风格的展开/折叠按钮 -->
+        <!-- 展开/折叠按钮样式 -->
+        <Style x:Key="ExpandCollapseToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="Transparent">
+                            <Path x:Name="ExpanderIcon"
+                                  Fill="Red" Stroke="Black" StrokeThickness="1"
+                                  Data="M 2 4 L 10 8 L 2 12 Z">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0"/>
+                                </Path.RenderTransform>
+                            </Path>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ExpanderIcon" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 自定义三角形展开/折叠按钮样式，适配深色主题 -->
+        <Style x:Key="TreeViewExpanderToggleStyle" TargetType="ToggleButton">
+    <Setter Property="Focusable" Value="False"/>
+    <Setter Property="Width" Value="16"/>
+    <Setter Property="Height" Value="16"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="ToggleButton">
+                <Grid>
+                    <!-- 未展开时向右 -->
+                    <Path x:Name="ExpandPath"
+                          Data="M 6 4 L 10 8 L 6 12 Z"
+                          Fill="#FFF" Stroke="#888" StrokeThickness="1"/>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <!-- 展开时向下 -->
+                    <Trigger Property="IsChecked" Value="True">
+                        <Setter TargetName="ExpandPath" Property="Data" Value="M 4 6 L 12 6 L 8 10 Z"/>
+                    </Trigger>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="ExpandPath" Property="Fill" Value="#4C8CFB"/>
+                        <Setter TargetName="ExpandPath" Property="Stroke" Value="#4C8CFB"/>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
+        <Style TargetType="TreeViewItem">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Foreground" Value="#ECECEC"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <!--<Setter Property="Padding" Value="6,4,8,4"/>-->
+            <!--<Setter Property="Margin" Value="0,0.5,0,0.5"/>-->
+            <Setter Property="Cursor" Value="Arrow"/>
+            <!-- TreeViewItem 的上下间距由 Margin 控制，当前为 0,2,0,2 -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeViewItem">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="32"/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <!-- 展开/折叠按钮 -->
+                            <ToggleButton x:Name="Expander"
+                                Style="{StaticResource TreeViewExpanderToggleStyle}"
+                                IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                                Width="18" Height="18" Margin="8,0,4,0"
+                                VerticalAlignment="Center"
+                                Grid.Row="0" Grid.Column="0">
+                                <ToggleButton.Visibility>
+    <Binding RelativeSource="{RelativeSource TemplatedParent}" Converter="{StaticResource IsTreeViewRootConverter}"/>
+</ToggleButton.Visibility>
+                            </ToggleButton>
+                            <!-- 树节点头部内容区域（显示分组/网站名等） -->
+                            <Border x:Name="Bd"
+                                    Grid.Column="1"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="4,0,0,0"
+                                    Cursor="Hand">
+                                <ContentPresenter x:Name="PART_Header"
+                                                  ContentSource="Header"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,0,0"/>
+                            </Border>
+                            <!-- 子节点内容区域 -->
+                            <ItemsPresenter Grid.Row="1" Grid.Column="1" Margin="20,0,0,0" x:Name="ItemsHost"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#363636"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#4C8CFB"/>
+                            </Trigger>
+                            <Trigger Property="IsExpanded" Value="False">
+                                <Setter Property="Visibility" TargetName="ItemsHost" Value="Collapsed"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 搜索框的自定义样式，带有圆角和搜索图标 -->
+        <Style x:Key="CustomSearchBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#3c3c3c"/>
+            <Setter Property="Background" Value="#2c2c2c"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="CaretBrush" Value="#FFFFFF"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- 搜索图标（放在TextBox左侧） -->
+                                <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="16" 
+                                           VerticalAlignment="Center" Margin="8,0,5,0" Foreground="#888"/>
+                                <!-- 输入内容区域 -->
+                                <ScrollViewer x:Name="PART_ContentHost" Grid.Column="1"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush" Value="#555"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 覆盖系统高亮颜色，适配深色主题 -->
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#CCCCCC"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#CCCCCC"/>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部自定义标题栏（包含窗口控制按钮和Logo） -->
+        <DockPanel Grid.Row="0" Height="40" Background="#141414" Margin="0">
+            <!-- 右上角窗口控制按钮区域（抽屉、最小化、最大化、关闭） -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                <!-- 抽屉开关按钮（汉堡菜单） -->
+                <Button x:Name="DrawerToggleBtn" Width="40" Height="40" Margin="0,0,8,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Cursor="Hand" Click="DrawerToggleBtn_Click">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <!-- 设置按钮的默认背景色为透明 -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            <!-- 定义按钮的自定义模板 -->
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <!-- 使用Grid作为根容器，可以叠加多个元素 -->
+                                        <Grid>
+                                            <!-- 背景层：用于显示鼠标悬停效果，x:Name="BackgroundBorder" 给Border命名，以便在触发器中引用 -->
+                                            <Border x:Name="BackgroundBorder" Background="Transparent"/>
+                                            <!-- 内容层 -->
+                                            <Viewbox Width="24" Height="24" Stretch="Uniform">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path StrokeThickness="2" Stroke="#AAA" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M4 7h16M4 12h16M4 17h16"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+                                        <!-- 模板触发器：定义鼠标悬停等交互效果 -->
+                                        <ControlTemplate.Triggers>
+                                            <!-- 当鼠标悬停时，将背景色改为深灰色 -->
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BackgroundBorder" Property="Background" Value="#555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <!-- 最小化按钮 -->
+                <Button Width="40" Height="40" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Click="MinimizeButton_Click">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <!-- 设置按钮的默认背景色为透明 -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            <!-- 定义按钮的自定义模板 -->
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <!-- 使用Grid作为根容器，可以叠加多个元素 -->
+                                        <Grid>
+                                            <!-- 背景层：用于显示鼠标悬停效果，x:Name="BackgroundBorder" 给Border命名，以便在触发器中引用 -->
+                                            <Border x:Name="BackgroundBorder" Background="Transparent"/>
+                                            <!-- 内容层 -->
+                                            <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#AAA" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <!-- 模板触发器：定义鼠标悬停等交互效果 -->
+                                        <ControlTemplate.Triggers>
+                                            <!-- 当鼠标悬停时，将背景色改为深灰色 -->
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BackgroundBorder" Property="Background" Value="#555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <!-- 最大化按钮 -->
+                <Button Width="40" Height="40" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Click="MaximizeButton_Click">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <!-- 设置按钮的默认背景色为透明 -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            <!-- 定义按钮的自定义模板 -->
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <!-- 使用Grid作为根容器，可以叠加多个元素 -->
+                                        <Grid>
+                                            <!-- 背景层：用于显示鼠标悬停效果，x:Name="BackgroundBorder" 给Border命名，以便在触发器中引用 -->
+                                            <Border x:Name="BackgroundBorder" Background="Transparent"/>
+                                            <!-- 内容层 -->
+                                            <TextBlock Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#AAA" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <!-- 模板触发器：定义鼠标悬停等交互效果 -->
+                                        <ControlTemplate.Triggers>
+                                            <!-- 当鼠标悬停时，将背景色改为深灰色 -->
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BackgroundBorder" Property="Background" Value="#555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <!-- 关闭按钮 -->
+                <Button Width="40" Height="40" Click="CloseButton_Click">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <!-- 设置按钮的默认背景色为透明 -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            
+                            <!-- 定义按钮的自定义模板 -->
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <!-- 使用Grid作为根容器，可以叠加多个元素 -->
+                                        <Grid>
+                                            <!-- 背景层：用于显示鼠标悬停效果，x:Name="BackgroundBorder" 给Border命名，以便在触发器中引用，默认背景为透明 -->
+                                            <Border x:Name="BackgroundBorder" 
+                                                    Background="Transparent"/>
+                                            
+                                            <!-- 内容层：显示关闭图标，使用Segoe MDL2 Assets字体中的关闭图标，颜色为浅红色 -->
+                                            <TextBlock Text="&#xE8BB;" 
+                                                     FontFamily="Segoe MDL2 Assets" 
+                                                     FontSize="16" 
+                                                     Foreground="#F55" 
+                                                     HorizontalAlignment="Center" 
+                                                     VerticalAlignment="Center"/>
+                                        </Grid>
+                                        
+                                        <!-- 模板触发器：定义鼠标悬停等交互效果 -->
+                                        <ControlTemplate.Triggers>
+                                            <!-- 当鼠标悬停时，将背景色改为深红色 -->
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BackgroundBorder" Property="Background" Value="#861b2d"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+            <!-- 可选：左侧Logo或标题 -->
+            <TextBlock Text="Tool" Foreground="#EEE" FontSize="16" VerticalAlignment="Center" Margin="16,0,0,0"/>
+        </DockPanel>
+
+        <!-- 主内容区（包含左侧菜单和右侧TabControl） -->
+        <Grid Grid.Row="1" Background="#1e1e1e" Margin="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="0"/>
+                <ColumnDefinition x:Name="DrawerCol" Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧菜单卡片区域 -->
+            <Border x:Name="DrawerBorder" Grid.Column="1" Margin="0,0,0,0"
+                    Background="#252526" Padding="10"
+                    VerticalAlignment="Stretch" HorizontalAlignment="Left" Width="200"
+                    Panel.ZIndex="11">
+                <DockPanel x:Name="DrawerPanel" LastChildFill="True">
+                    <!-- 搜索框，带圆角和图标 -->
+                    <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged"
+                             Style="{StaticResource CustomSearchBoxStyle}" Margin="10,5,10,5" DockPanel.Dock="Top"/>
+                    <!-- 树形菜单，带图标 -->
+                    <TreeView x:Name="MenuTree" Style="{StaticResource CustomTreeViewStyle}" 
+                              SelectedItemChanged="MenuTree_SelectedItemChanged">
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <!-- 右侧TabControl区域 -->
+            <Grid Grid.Column="2" Margin="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <!-- 地址栏区域（包含导航按钮、URL输入框、跳转按钮） -->
+                <Grid x:Name="UrlBar" Grid.Row="0" Margin="5,5,5,5" Visibility="Collapsed" Background="#3c3c3c">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- 导航按钮（后退、前进、刷新） -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,5,0">
+                        <Button x:Name="BackButton" Width="32" Height="32" Margin="0,0,2,0" 
+                                Click="BackButton_Click" ToolTip="后退"
+                                Background="Transparent" BorderThickness="0">
+                            <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#FFFFFF"/>
+                        </Button>
+                        <Button x:Name="ForwardButton" Width="32" Height="32" Margin="2,0,2,0"
+                                Click="ForwardButton_Click" ToolTip="前进"
+                                Background="Transparent" BorderThickness="0">
+                            <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#FFFFFF"/>
+                        </Button>
+                        <Button x:Name="RefreshButton" Width="32" Height="32" Margin="2,0,0,0"
+                                Click="RefreshButton_Click" ToolTip="刷新"
+                                Background="Transparent" BorderThickness="0">
+                            <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#FFFFFF"/>
+                        </Button>
+                    </StackPanel>
+                    <!-- URL输入框 -->
+                    <TextBox x:Name="UrlTextBox" Grid.Column="1" Height="32" Margin="0,0,5,0"
+                             VerticalContentAlignment="Center" Padding="8,0"
+                             Background="#2c2c2c" Foreground="#FFFFFF" CaretBrush="#FFFFFF"
+                             BorderThickness="1" BorderBrush="#555555"
+                             KeyDown="UrlTextBox_KeyDown"/>
+                    <!-- 跳转按钮（根据地址栏内容跳转） -->
+                    <Button x:Name="DevToolsButton" Grid.Column="2" Width="32" Height="32"
+                            Click="DevToolsButton_Click" ToolTip="前往"
+                            Background="Transparent" BorderThickness="0" Margin="2,0,0,0">
+                        <TextBlock Text="&#xE122;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#FFFFFF"/>
+                    </Button>
+                </Grid>
+                <!-- 主TabControl控件，显示各个网页内容 -->
+                <TabControl x:Name="MainTabControl" Grid.Row="1"
+                            BorderThickness="1,0,0,0" BorderBrush="#3c3c3c"
+                            MouseRightButtonDown="MainTabControl_MouseRightButtonDown">
+                    <TabControl.Style>
+                        <Style TargetType="TabControl">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TabControl">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+                                            <!-- 标签页头部区域 -->
+                                            <Border Grid.Row="0" 
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    BorderBrush="#3c3c3c"
+                                                    Background="#3c3c3c">
+                                                <TabPanel x:Name="HeaderPanel" 
+                                                         Panel.ZIndex="1" 
+                                                         Background="Transparent"
+                                                         KeyboardNavigation.TabIndex="1"
+                                                         IsItemsHost="True"/>
+                                            </Border>
+                                            <!-- 标签页内容区域 -->
+                                            <Border Grid.Row="1" 
+                                                    Background="#1e1e1e"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    BorderBrush="#3c3c3c"
+                                                    KeyboardNavigation.DirectionalNavigation="Contained"
+                                                    KeyboardNavigation.TabIndex="2"
+                                                    KeyboardNavigation.TabNavigation="Local">
+                                                <ContentPresenter x:Name="PART_SelectedContentHost"
+                                                                Margin="{TemplateBinding Padding}"
+                                                                ContentSource="SelectedContent"/>
+                                            </Border>
+                                        </Grid>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.Style>
+                    <TabControl.ItemContainerStyle>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TabItem">
+                                        <Border x:Name="Border" 
+                                                BorderThickness="1,1,1,0" 
+                                                BorderBrush="#3c3c3c"
+                                                Background="Transparent"
+                                                Margin="0,0,2,0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0" 
+                                                                ContentSource="Header" 
+                                                                Margin="8,4,8,4">
+                                                    <ContentPresenter.Resources>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                        </Style>
+                                                    </ContentPresenter.Resources>
+                                                </ContentPresenter>
+                                                <Button Grid.Column="1" 
+                                                        Width="16" Height="16" 
+                                                        Margin="0,0,8,0"
+                                                        Click="CloseTabButton_Click"
+                                                        Tag="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                                                        Background="Transparent"
+                                                        BorderThickness="0"
+                                                        Padding="0"
+                                                        Cursor="Hand"
+                                                        VerticalAlignment="Center">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Cursor" Value="Hand"/>
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="Border" 
+                                                                                Background="Transparent"
+                                                                                CornerRadius="8">
+                                                                            <TextBlock Text="&#xE8BB;" 
+                                                                                     FontFamily="Segoe MDL2 Assets" 
+                                                                                     FontSize="10" 
+                                                                                     Foreground="#666"
+                                                                                     HorizontalAlignment="Center" 
+                                                                                     VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                        <ControlTemplate.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter TargetName="Border" Property="Background" Value="#E0E0E0"/>
+                                                                                <Setter Property="Foreground" Value="#333"/>
+                                                                            </Trigger>
+                                                                        </ControlTemplate.Triggers>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#3c3c3c"/>
+                                                <Setter TargetName="Border" Property="BorderBrush" Value="#3c3c3c"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#4c4c4c"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.ItemContainerStyle>
+                    <TabControl.ContextMenu>
+                        <ContextMenu x:Name="TabContextMenu" 
+                                    PlacementTarget="{Binding ElementName=MainTabControl}"
+                                    Placement="Custom"
+                                    CustomPopupPlacementCallback="ContextMenu_PlacementCallback">
+                            <MenuItem Header="刷新" Click="RefreshTabMenuItem_Click"/>
+                            <MenuItem Header="复制网址" Click="CopyUrlMenuItem_Click"/>
+                            <MenuItem Header="复制标题" Click="CopyTitleMenuItem_Click"/>
+                            <Separator/>
+                            <MenuItem Header="复制" Click="CopyMenuItem_Click"/>
+                            <MenuItem Header="粘贴" Click="PasteMenuItem_Click"/>
+                            <MenuItem Header="粘贴并访问" Click="PasteAndGoMenuItem_Click"/>
+                            <Separator/>
+                            <MenuItem Header="在新标签页中打开" Click="OpenInNewTabMenuItem_Click"/>
+                            <MenuItem Header="复制标签页" Click="DuplicateTabMenuItem_Click"/>
+                            <Separator/>
+                            <MenuItem Header="关闭标签页" Click="CloseTabMenuItem_Click"/>
+                            <MenuItem Header="关闭其他标签页" Click="CloseOtherTabsMenuItem_Click"/>
+                            <MenuItem Header="关闭右侧标签页" Click="CloseRightTabsMenuItem_Click"/>
+                        </ContextMenu>
+                    </TabControl.ContextMenu>
+                    <TabControl.ContentTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <ContentPresenter Content="{Binding}"/>
+                                <controls:LoadingControl IsLoading="{Binding IsLoading}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </TabControl.ContentTemplate>
+                </TabControl>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

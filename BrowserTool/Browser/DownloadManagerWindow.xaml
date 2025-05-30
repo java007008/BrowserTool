@@ -1,0 +1,41 @@
+<Window x:Class="BrowserTool.Browser.DownloadManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:BrowserTool.Browser"
+        Title="下载管理器" Height="400" Width="600"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <local:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </Window.Resources>
+    <Grid>
+        <DataGrid x:Name="DownloadGrid" ItemsSource="{Binding Tasks}" AutoGenerateColumns="False" CanUserAddRows="False" Margin="10">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="2*"/>
+                <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="*"/>
+                <DataGridTemplateColumn Header="进度" Width="2*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Height="16"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="操作" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="打开" Margin="2,0" Click="OpenFile_Click" IsEnabled="{Binding IsComplete}"/>
+                                <Button Content="文件夹" Margin="2,0" Click="OpenFolder_Click" IsEnabled="{Binding IsComplete}"/>
+                                <Button Content="取消" Margin="2,0" Click="Cancel_Click" IsEnabled="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="清除已完成" Click="ClearCompleted_Click"/>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+        </DataGrid>
+    </Grid>
+</Window> 
