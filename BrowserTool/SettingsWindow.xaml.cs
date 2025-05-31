@@ -55,6 +55,7 @@ namespace BrowserTool
 
         private void RefreshGroups()
         {
+            allGroups = SiteConfig.GetAllGroups();
             groups = new ObservableCollection<SiteGroupViewModel>(
                 allGroups.Select(g => new SiteGroupViewModel(g))
             );
@@ -69,6 +70,7 @@ namespace BrowserTool
                 return;
             }
             System.Diagnostics.Debug.WriteLine($"[RefreshSites] dgSites is null? {dgSites == null}");
+            allSites = SiteConfig.GetAllSites() ?? new List<SiteItem>();
             var sites = selectedGroup != null
                 ? (selectedGroup.Sites?.ToList() ?? new List<SiteItem>())
                 : (allSites ?? new List<SiteItem>());
