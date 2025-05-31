@@ -29,7 +29,29 @@ namespace BrowserTool.Utils
         {
             try
             {
-                var uri = new Uri(url);
+                // 检查 URL 是否有效
+                if (string.IsNullOrEmpty(url))
+                {
+                    return new BitmapImage(new Uri("pack://application:,,,/Resources/default_icon.png"));
+                }
+
+                // 确保 URL 包含协议
+                if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                    !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    url = "https://" + url;
+                }
+
+                Uri uri;
+                try
+                {
+                    uri = new Uri(url);
+                }
+                catch (UriFormatException)
+                {
+                    // URL 格式无效，返回默认图标
+                    return new BitmapImage(new Uri("pack://application:,,,/Resources/default_icon.png"));
+                }
                 var baseUrl = $"{uri.Scheme}://{uri.Host}";
                 var iconPath = Path.Combine(IconsDirectory, $"{uri.Host}.png");
 
