@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -12,8 +12,11 @@ using System.Windows.Media.Imaging;
 using System.Windows.Interop;
 using System.IO;
 using System.Threading;
+using System.Reflection;
 using Hardcodet.Wpf.TaskbarNotification;
 using BrowserTool.Database;
+using CefSharp;
+using CefSharp.Wpf;
 
 namespace BrowserTool
 {
@@ -38,6 +41,9 @@ namespace BrowserTool
                     Shutdown();
                     return;
                 }
+
+                // 初始化CEF
+                InitializeCef();
 
                 // 初始化数据库
                 DatabaseInitializer.Initialize();
@@ -101,7 +107,96 @@ namespace BrowserTool
         protected override void OnExit(ExitEventArgs e)
         {
             mutex.ReleaseMutex();
+            
+            try
+            {
+                // 清理浏览器实例管理器
+                if (BrowserTool.Browser.BrowserInstanceManager.Instance != null)
+                {
+                    BrowserTool.Browser.BrowserInstanceManager.Instance.CleanupAllBrowsers();
+                }
+                
+                // 清理图像缓存
+                BrowserTool.Utils.ImageCache.ClearCache();
+                
+                // 关闭CEF
+                if (Cef.IsInitialized == true)
+                {
+                    Cef.Shutdown();
+                }
+            }
+            catch (Exception ex)
+            {
+                // 记录异常但不阻止应用程序退出
+                System.Diagnostics.Debug.WriteLine($"应用程序退出清理异常: {ex.Message}");
+            }
+            
             base.OnExit(e);
+        }
+        
+        /// <summary>
+        /// 初始化CEF浏览器引擎
+        /// </summary>
+        private void InitializeCef()
+        {
+            if (Cef.IsInitialized != true)
+            {
+                try
+                {
+                    var settings = new CefSettings();
+                    
+                    // 设置缓存路径为exe所在目录下的CEF文件夹
+                    string exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                    string cachePath = Path.Combine(exePath, "CEF");
+                    if (!Directory.Exists(cachePath))
+                    {
+                        Directory.CreateDirectory(cachePath);
+                    }
+                    settings.CachePath = cachePath;
+                    
+                    // 设置用户数据路径也在exe所在目录下
+                    string userDataPath = Path.Combine(exePath, @"CEF\UserData");
+                    if (!Directory.Exists(userDataPath))
+                    {
+                        Directory.CreateDirectory(userDataPath);
+                    }
+                    // UserDataPath不是CefSettings的属性，使用RootCachePath代替
+                    // 在新版本中，用户数据会存储在缓存目录下的User Data文件夹中
+                    
+                    // 设置日志文件路径
+                    string logPath = Path.Combine(exePath, @"CEF\Log");
+                    if (!Directory.Exists(logPath))
+                    {
+                        Directory.CreateDirectory(logPath);
+                    }
+                    settings.LogFile = Path.Combine(logPath, "cef.log");
+                    
+                    // 性能优化设置
+                    settings.PersistSessionCookies = true;
+                    // 用户偏好会自动保存到缓存目录
+                    
+                    // 启用硬件加速
+                    settings.CefCommandLineArgs.Add("enable-gpu", "1");
+                    settings.CefCommandLineArgs.Add("enable-gpu-compositing", "1");
+                    settings.CefCommandLineArgs.Add("enable-gpu-rasterization", "1");
+                    
+                    // 内存优化
+                    settings.CefCommandLineArgs.Add("disable-gpu-shader-disk-cache", "1");
+                    settings.CefCommandLineArgs.Add("renderer-process-limit", "1");
+                    settings.CefCommandLineArgs.Add("disable-extensions", "1");
+                    
+                    // 禁用自动更新检查
+                    settings.CefCommandLineArgs.Add("disable-component-update", "1");
+                    
+                    // 初始化CEF
+                    Cef.Initialize(settings);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"CEF初始化失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    Shutdown();
+                }
+            }
         }
 
         // Win32 API 导入

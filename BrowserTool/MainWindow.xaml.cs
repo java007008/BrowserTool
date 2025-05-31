@@ -59,24 +59,6 @@ namespace BrowserTool
         {
             try
             {
-                if (Cef.IsInitialized != true)
-                {
-                    var settings = new CefSettings();
-                    
-                    // Set cache path in user data directory
-                    string cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BrowserTool", "CEF");
-                    if (!Directory.Exists(cachePath))
-                    {
-                        Directory.CreateDirectory(cachePath);
-                    }
-                    settings.CachePath = cachePath;
-                    
-                    // Additional settings for v136.1.40
-                    settings.PersistSessionCookies = true;
-                    
-                    // Initialize CEF with the specified settings
-                    Cef.Initialize(settings);
-                }
                 InitializeComponent();
                 _mouseActivitySimulator = new MouseActivitySimulator();
                 _mouseActivitySimulator.Start(); // 程序启动时自动启动鼠标活动模拟
@@ -139,22 +121,15 @@ namespace BrowserTool
                         try
                         {
                             var image = new Image { Width = 16, Height = 16, Margin = new Thickness(0, 0, 5, 0) };
-                            var bitmap = new BitmapImage();
-                            bitmap.BeginInit();
-                            if (item.Icon.StartsWith("data:image") || item.Icon.Length > 200) // Base64
+                            
+                            // 使用图像缓存获取图像
+                            var bitmap = Utils.ImageCache.GetImage(item.Icon);
+                            
+                            if (bitmap != null)
                             {
-                                var bytes = Convert.FromBase64String(item.Icon.Contains(",") ? item.Icon.Substring(item.Icon.IndexOf(",") + 1) : item.Icon);
-                                bitmap.StreamSource = new MemoryStream(bytes);
+                                image.Source = bitmap;
+                                stackPanel.Children.Add(image);
                             }
-                            else if (File.Exists(item.Icon))
-                            {
-                                bitmap.UriSource = new Uri(item.Icon);
-                            }
-                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                            bitmap.EndInit();
-                            bitmap.Freeze();
-                            image.Source = bitmap;
-                            stackPanel.Children.Add(image);
                         }
                         catch { }
                     }
@@ -188,6 +163,7 @@ namespace BrowserTool
         /// </summary>
         private void OpenUrlInTab(string title, string url)
         {
+            // 检查是否已存在相同URL的标签页
             foreach (TabItem tab in MainTabControl.Items)
             {
                 if (tab.Tag is string tagUrl && tagUrl == url)
@@ -196,75 +172,117 @@ namespace BrowserTool
                     return;
                 }
             }
-            var newBrowser = new ChromiumWebBrowser(url);
-            newBrowser.DownloadHandler = new CefDownloadHandler();
-            newBrowser.MenuHandler = new CefMenuHandler();
-            newBrowser.LifeSpanHandler = new Browser.CefLifeSpanHandler();
-
+            
+            // 生成唯一的标签页ID
+            string tabId = Guid.NewGuid().ToString();
+            
+            // 从浏览器实例管理器获取浏览器实例
+            var newBrowser = Browser.BrowserInstanceManager.Instance.GetBrowser(url, tabId);
+            
             var browserContext = new BrowserContext { IsLoading = true };
-
+            
             // 自动登录逻辑
             var siteItem = FindSiteItemByUrl(url);
             if (siteItem != null && siteItem.AutoLogin)
             {
-                newBrowser.FrameLoadEnd += (sender, args) =>
+                // 使用弱引用事件处理器避免内存泄漏
+                EventHandler<FrameLoadEndEventArgs> frameLoadEndHandler = null;
+                frameLoadEndHandler = (sender, args) =>
                 {
                     if (args.Frame.IsMain)
                     {
-                        string username = siteItem.UseCommonCredentials ? siteItem.CommonUsername : siteItem.Username;
-                        string password = siteItem.UseCommonCredentials ? siteItem.CommonPassword : siteItem.Password;
-                        string usernameSelector = string.IsNullOrWhiteSpace(siteItem.UsernameSelector) ? "input[type=email],input[type=text],input[name*=user],input[name*=email],input[name*=login]" : siteItem.UsernameSelector;
-                        string passwordSelector = string.IsNullOrWhiteSpace(siteItem.PasswordSelector) ? "input[type=password]" : siteItem.PasswordSelector;
-                        string captchaSelector = siteItem.CaptchaSelector;
-                        string loginButtonSelector = string.IsNullOrWhiteSpace(siteItem.LoginButtonSelector) ? "button[type=submit],input[type=submit]" : siteItem.LoginButtonSelector;
-                        string loginPageFeature = siteItem.LoginPageFeature;
-                        string captchaValue = siteItem.CaptchaValue ?? "";
-                        if (siteItem.CaptchaMode == 1 && !string.IsNullOrWhiteSpace(siteItem.GoogleSecret))
-                        {
-                            captchaValue = BrowserTool.Utils.GoogleAuthenticator.GenerateCode(siteItem.GoogleSecret);
-                        }
-                        // 判断登录页特征
-                        string featureCheck = string.IsNullOrWhiteSpace(loginPageFeature) ? "" : $"if(!document.querySelector('{loginPageFeature}')) return;";
-                        string captchaJs = string.IsNullOrWhiteSpace(captchaSelector) ? "" : $"var captchaInput = document.querySelector('{captchaSelector}'); if(captchaInput) captchaInput.value = '{captchaValue.Replace("'", "\\'")}';";
-                        string js = $@"
-                            (function() {{
-                                {featureCheck}
-                                var userInput = document.querySelector('{usernameSelector}');
-                                var passInput = document.querySelector('{passwordSelector}');
-                                {captchaJs}
-                                if(userInput) userInput.value = '{username?.Replace("'", "\\'") ?? ""}';
-                                if(passInput) passInput.value = '{password?.Replace("'", "\\'") ?? ""}';
-                                var form = userInput ? userInput.form : (passInput ? passInput.form : null);
-                                if(form) {{
-                                    form.submit();
-                                }} else {{
-                                    var btn = document.querySelector('{loginButtonSelector}');
-                                    if(btn) btn.click();
-                                }}
-                            }})();
-                        ";
-                        args.Frame.ExecuteJavaScriptAsync(js);
+                        // 执行自动登录脚本
+                        ExecuteAutoLoginScript(args.Frame, siteItem);
+                        
+                        // 执行一次后取消事件订阅
+                        newBrowser.FrameLoadEnd -= frameLoadEndHandler;
                     }
                 };
+                
+                newBrowser.FrameLoadEnd += frameLoadEndHandler;
             }
-
-            newBrowser.LoadingStateChanged += (sender, args) =>
+            
+            // 使用弱引用事件处理器避免内存泄漏
+            EventHandler<LoadingStateChangedEventArgs> loadingStateChangedHandler = null;
+            loadingStateChangedHandler = (sender, args) =>
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    browserContext.IsLoading = args.IsLoading;
-                });
+                    if (browserContext != null)
+                    {
+                        browserContext.IsLoading = args.IsLoading;
+                    }
+                }, System.Windows.Threading.DispatcherPriority.Background);
             };
-
+            
+            newBrowser.LoadingStateChanged += loadingStateChangedHandler;
+            
+            // 创建标签页并添加到TabControl
             var tabItem = new TabItem
             {
                 Header = title,
                 Tag = url,
                 Content = newBrowser,
-                DataContext = browserContext
+                DataContext = browserContext,
+                Name = tabId // 保存标签页ID用于后续引用
             };
+            
+            // 添加标签页关闭事件处理
+            tabItem.Unloaded += (sender, e) =>
+            {
+                // 取消事件订阅
+                newBrowser.LoadingStateChanged -= loadingStateChangedHandler;
+                
+                // 释放浏览器实例
+                Browser.BrowserInstanceManager.Instance.ReleaseBrowser(tabId);
+            };
+            
             MainTabControl.Items.Add(tabItem);
             MainTabControl.SelectedItem = tabItem;
+        }
+        
+        /// <summary>
+        /// 执行自动登录脚本
+        /// </summary>
+        private void ExecuteAutoLoginScript(IFrame frame, SiteItem siteItem)
+        {
+            string username = siteItem.UseCommonCredentials ? siteItem.CommonUsername : siteItem.Username;
+            string password = siteItem.UseCommonCredentials ? siteItem.CommonPassword : siteItem.Password;
+            string usernameSelector = string.IsNullOrWhiteSpace(siteItem.UsernameSelector) ? "input[type=email],input[type=text],input[name*=user],input[name*=email],input[name*=login]" : siteItem.UsernameSelector;
+            string passwordSelector = string.IsNullOrWhiteSpace(siteItem.PasswordSelector) ? "input[type=password]" : siteItem.PasswordSelector;
+            string captchaSelector = siteItem.CaptchaSelector;
+            string loginButtonSelector = string.IsNullOrWhiteSpace(siteItem.LoginButtonSelector) ? "button[type=submit],input[type=submit]" : siteItem.LoginButtonSelector;
+            string loginPageFeature = siteItem.LoginPageFeature;
+            string captchaValue = siteItem.CaptchaValue ?? "";
+            
+            if (siteItem.CaptchaMode == 1 && !string.IsNullOrWhiteSpace(siteItem.GoogleSecret))
+            {
+                captchaValue = BrowserTool.Utils.GoogleAuthenticator.GenerateCode(siteItem.GoogleSecret);
+            }
+            
+            // 判断登录页特征
+            string featureCheck = string.IsNullOrWhiteSpace(loginPageFeature) ? "" : $"if(!document.querySelector('{loginPageFeature}')) return;";
+            string captchaJs = string.IsNullOrWhiteSpace(captchaSelector) ? "" : $"var captchaInput = document.querySelector('{captchaSelector}'); if(captchaInput) captchaInput.value = '{captchaValue.Replace("'", "\\'")}';";
+            
+            string js = $@"
+                (function() {{
+                    {featureCheck}
+                    var userInput = document.querySelector('{usernameSelector}');
+                    var passInput = document.querySelector('{passwordSelector}');
+                    {captchaJs}
+                    if(userInput) userInput.value = '{username?.Replace("'", "\\'") ?? ""}';
+                    if(passInput) passInput.value = '{password?.Replace("'", "\\'") ?? ""}';
+                    var form = userInput ? userInput.form : (passInput ? passInput.form : null);
+                    if(form) {{
+                        form.submit();
+                    }} else {{
+                        var btn = document.querySelector('{loginButtonSelector}');
+                        if(btn) btn.click();
+                    }}
+                }})();
+            ";
+            
+            frame.ExecuteJavaScriptAsync(js);
         }
 
         // 辅助方法：根据url查找SiteItem
