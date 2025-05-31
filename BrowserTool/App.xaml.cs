@@ -37,7 +37,23 @@ namespace BrowserTool
                 // 检查是否已经有实例在运行
                 if (!mutex.WaitOne(TimeSpan.Zero, true))
                 {
-                    MessageBox.Show("程序已经在运行中！", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    // 查找已运行进程并激活主窗口
+                    var current = System.Diagnostics.Process.GetCurrentProcess();
+                    var processes = System.Diagnostics.Process.GetProcessesByName(current.ProcessName);
+                    foreach (var process in processes)
+                    {
+                        if (process.Id != current.Id)
+                        {
+                            IntPtr hWnd = process.MainWindowHandle;
+                            if (hWnd != IntPtr.Zero)
+                            {
+                                if (IsIconic(hWnd))
+                                    ShowWindow(hWnd, SW_RESTORE);
+                                SetForegroundWindow(hWnd);
+                            }
+                            break;
+                        }
+                    }
                     Shutdown();
                     return;
                 }
