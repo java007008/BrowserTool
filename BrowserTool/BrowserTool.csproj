@@ -6,7 +6,15 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>BrowserTool</RootNamespace>
     <AssemblyName>BrowserTool</AssemblyName>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
+  <ItemGroup>
+    <None Remove="Resources\app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
@@ -23,5 +31,11 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="CefSharp.Wpf.NETCore" Version="136.1.40" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Resources\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>
