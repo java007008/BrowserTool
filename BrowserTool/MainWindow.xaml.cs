@@ -185,12 +185,12 @@ namespace BrowserTool
                     string combinedTitle = $"{parentName}-{data.Name}";
                     
                     // 打开标签页，使用组合后的标题
-                    OpenUrlInTab(combinedTitle, data.Url);
+                    OpenUrlInTab(combinedTitle, data.Url, true);
                 }
                 else
                 {
                     // 如果没有找到父级菜单项，则使用原始标题
-                    OpenUrlInTab(data.Name, data.Url);
+                    OpenUrlInTab(data.Name, data.Url, true);
                 }
             }
         }
@@ -199,7 +199,7 @@ namespace BrowserTool
         /// 在Tab中打开网址（使用CefSharp浏览器）
         /// </summary>
         /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
-        public TabItem OpenUrlInTab(string title, string url)
+        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false)
         {
             // 检查是否已存在相同URL的标签页
             foreach (TabItem tab in MainTabControl.Items)
@@ -221,6 +221,12 @@ namespace BrowserTool
             EventHandler<FrameLoadEndEventArgs> titleUpdateHandler = null;
             titleUpdateHandler = (sender, args) => 
             {
+                // 如果设置了保持原始标题，则不更新标题
+                if (keepOriginalTitle)
+                {
+                    return;
+                }
+                
                 if (args.Frame.IsMain)
                 {
                     // 使用 JavaScript 执行获取页面标题

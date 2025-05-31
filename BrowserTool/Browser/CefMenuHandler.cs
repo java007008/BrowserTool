@@ -64,7 +64,8 @@ namespace BrowserTool.Browser
                             // 直接使用 OpenUrlInTab 方法，并设置初始标题为 "Loading..."
                             // 浏览器会自动更新标题为网站标题
                             mainWindow.Dispatcher.BeginInvoke(new Action(() => {
-                                mainWindow.OpenUrlInTab("Loading...", clipboardText);
+                                // 不传入 keepOriginalTitle 参数或设置为 false，允许标题动态更新
+                                mainWindow.OpenUrlInTab("Loading...", clipboardText, false);
                             }));
                         }
                     });
