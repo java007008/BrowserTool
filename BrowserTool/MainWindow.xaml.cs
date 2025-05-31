@@ -14,6 +14,7 @@ using System.IO;
 using System.Windows.Media.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Collections.Generic;
 using System.Security.Policy;
 using BrowserTool.Database.Entities;
 using System.Windows.Threading;
@@ -22,6 +23,15 @@ using BrowserTool.Utils;
 
 namespace BrowserTool
 {
+    /// <summary>
+    /// 标签页信息类，用于存储标签页的URL和ID
+    /// </summary>
+    public class TabInfo
+    {
+        public string Url { get; set; }
+        public string TabId { get; set; }
+    }
+    
     /// <summary>
     /// MainWindow.xaml 的交互逻辑
     /// </summary>
@@ -166,7 +176,7 @@ namespace BrowserTool
             // 检查是否已存在相同URL的标签页
             foreach (TabItem tab in MainTabControl.Items)
             {
-                if (tab.Tag is string tagUrl && tagUrl == url)
+                if (tab.Tag is TabInfo tabInfo && tabInfo.Url == url)
                 {
                     MainTabControl.SelectedItem = tab;
                     return;
@@ -217,14 +227,20 @@ namespace BrowserTool
             
             newBrowser.LoadingStateChanged += loadingStateChangedHandler;
             
+            // 创建 TabInfo 存储 URL 和 tabId
+            var newTabInfo = new TabInfo
+            {
+                Url = url,
+                TabId = tabId
+            };
+            
             // 创建标签页并添加到TabControl
             var tabItem = new TabItem
             {
                 Header = title,
-                Tag = url,
+                Tag = newTabInfo, 
                 Content = newBrowser,
-                DataContext = browserContext,
-                Name = tabId // 保存标签页ID用于后续引用
+                DataContext = browserContext
             };
             
             // 添加标签页关闭事件处理
@@ -234,7 +250,10 @@ namespace BrowserTool
                 newBrowser.LoadingStateChanged -= loadingStateChangedHandler;
                 
                 // 释放浏览器实例
-                Browser.BrowserInstanceManager.Instance.ReleaseBrowser(tabId);
+                if (sender is TabItem tab && tab.Tag is TabInfo info)
+                {
+                    Browser.BrowserInstanceManager.Instance.ReleaseBrowser(info.TabId);
+                }
             };
             
             MainTabControl.Items.Add(tabItem);
@@ -587,6 +606,12 @@ namespace BrowserTool
         {
             if (MainTabControl.SelectedItem is TabItem tabItem)
             {
+                // 如果标签页包含TabInfo，释放浏览器实例
+                if (tabItem.Tag is TabInfo tabInfo)
+                {
+                    Browser.BrowserInstanceManager.Instance.ReleaseBrowser(tabInfo.TabId);
+                }
+                
                 MainTabControl.Items.Remove(tabItem);
                 // 清除MenuTree的选中状态
                 ClearTreeViewSelection();
@@ -645,6 +670,10 @@ namespace BrowserTool
                 {
                     Clipboard.SetText(browser.Address);
                 }
+                else if (tabItem.Tag is TabInfo tabInfo)
+                {
+                    Clipboard.SetText(tabInfo.Url);
+                }
             }
         }
 
@@ -700,57 +729,52 @@ namespace BrowserTool
                     MainTabControl.Items.Add(newTabItem);
                     MainTabControl.SelectedItem = newTabItem;
                 }
-            }
-        }
-
-        private void CopyTitleMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainTabControl.SelectedItem is TabItem tabItem)
-            {
-                Clipboard.SetText(tabItem.Header.ToString());
-            }
-        }
-
-        private void CopyMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainTabControl.SelectedItem is TabItem tabItem)
-            {
-                var browser = tabItem.Content as ChromiumWebBrowser;
-                if (browser != null)
+                else if (tabItem.Tag is TabInfo tabInfo)
                 {
-                    browser.Copy();
-                }
-            }
-        }
+                    // 获取当前标签页的标题
+                    string baseTitle = tabItem.Header.ToString();
+                    // 移除可能存在的数字后缀
+                    baseTitle = System.Text.RegularExpressions.Regex.Replace(baseTitle, @"\d+$", "").Trim();
+                    
+                    // 查找所有以相同基础名称开头的标签页
+                    var existingTabs = MainTabControl.Items.Cast<TabItem>()
+                        .Where(t => t.Header.ToString().StartsWith(baseTitle))
+                        .ToList();
 
-        private void PasteMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainTabControl.SelectedItem is TabItem tabItem)
-            {
-                var browser = tabItem.Content as ChromiumWebBrowser;
-                if (browser != null)
-                {
-                    browser.Paste();
-                }
-            }
-        }
-
-        private void PasteAndGoMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainTabControl.SelectedItem is TabItem tabItem)
-            {
-                var browser = tabItem.Content as ChromiumWebBrowser;
-                if (browser != null)
-                {
-                    string url = Clipboard.GetText();
-                    if (!string.IsNullOrWhiteSpace(url))
+                    // 计算新的数字后缀
+                    int newNumber = 1;
+                    if (existingTabs.Any())
                     {
-                        if (!url.StartsWith("http://") && !url.StartsWith("https://"))
+                        var numbers = existingTabs
+                            .Select(t => t.Header.ToString())
+                            .Select(title => System.Text.RegularExpressions.Regex.Match(title, @"\d+$"))
+                            .Where(m => m.Success)
+                            .Select(m => int.Parse(m.Value))
+                            .ToList();
+                        
+                        if (numbers.Any())
                         {
-                            url = "https://" + url;
+                            newNumber = numbers.Max() + 1;
                         }
-                        browser.LoadUrl(url);
                     }
+
+                    // 创建新的浏览器实例，加载相同的URL
+                    var newBrowser = new ChromiumWebBrowser(tabInfo.Url);
+                    // 复制原标签页的处理器
+                    newBrowser.DownloadHandler = new CefDownloadHandler();
+                    newBrowser.MenuHandler = new CefMenuHandler();
+                    newBrowser.LifeSpanHandler = new Browser.CefLifeSpanHandler();
+                    
+                    // 创建新标签页，使用带数字的标题
+                    var newTabItem = new TabItem
+                    {
+                        Header = $"{baseTitle}{newNumber}",
+                        Tag = tabInfo,
+                        Content = newBrowser
+                    };
+                    
+                    MainTabControl.Items.Add(newTabItem);
+                    MainTabControl.SelectedItem = newTabItem;
                 }
             }
         }
@@ -763,6 +787,10 @@ namespace BrowserTool
                 if (browser != null)
                 {
                     OpenUrlInTab(tabItem.Header.ToString(), browser.Address);
+                }
+                else if (tabItem.Tag is TabInfo tabInfo)
+                {
+                    OpenUrlInTab(tabItem.Header.ToString(), tabInfo.Url);
                 }
             }
         }
@@ -1015,23 +1043,17 @@ namespace BrowserTool
 
         private void CloseTabButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button)
+            if (sender is Button button && button.Tag is TabItem tabItem)
             {
-                var tabItem = button.Tag as TabItem;
-                if (tabItem != null)
+                // 如果标签页包含TabInfo，释放浏览器实例
+                if (tabItem.Tag is TabInfo tabInfo)
                 {
-                    // 如果关闭的是当前选中的标签页，需要先选择其他标签页
-                    if (tabItem == MainTabControl.SelectedItem && MainTabControl.Items.Count > 1)
-                    {
-                        int currentIndex = MainTabControl.Items.IndexOf(tabItem);
-                        int newIndex = currentIndex > 0 ? currentIndex - 1 : 1;
-                        MainTabControl.SelectedIndex = newIndex;
-                    }
-
-                    MainTabControl.Items.Remove(tabItem);
-                    // 清除MenuTree的选中状态
-                    ClearTreeViewSelection();
+                    Browser.BrowserInstanceManager.Instance.ReleaseBrowser(tabInfo.TabId);
                 }
+
+                MainTabControl.Items.Remove(tabItem);
+                // 清除MenuTree的选中状态
+                ClearTreeViewSelection();
             }
         }
 
@@ -1074,6 +1096,70 @@ namespace BrowserTool
         {
             _mouseActivitySimulator.Stop(); // 确保在关闭窗口时停止鼠标活动模拟
             Close();
+        }
+
+        /// <summary>
+        /// 复制标签页标题到剪贴板
+        /// </summary>
+        private void CopyTitleMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (MainTabControl.SelectedItem is TabItem tabItem)
+            {
+                Clipboard.SetText(tabItem.Header.ToString());
+            }
+        }
+
+        /// <summary>
+        /// 复制选中内容到剪贴板
+        /// </summary>
+        private void CopyMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (MainTabControl.SelectedItem is TabItem tabItem)
+            {
+                var browser = tabItem.Content as ChromiumWebBrowser;
+                if (browser != null)
+                {
+                    browser.Copy();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 粘贴剪贴板内容
+        /// </summary>
+        private void PasteMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (MainTabControl.SelectedItem is TabItem tabItem)
+            {
+                var browser = tabItem.Content as ChromiumWebBrowser;
+                if (browser != null)
+                {
+                    browser.Paste();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 粘贴剪贴板内容并访问URL
+        /// </summary>
+        private void PasteAndGoMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (MainTabControl.SelectedItem is TabItem tabItem)
+            {
+                var browser = tabItem.Content as ChromiumWebBrowser;
+                if (browser != null)
+                {
+                    string url = Clipboard.GetText();
+                    if (!string.IsNullOrWhiteSpace(url))
+                    {
+                        if (!url.StartsWith("http://") && !url.StartsWith("https://"))
+                        {
+                            url = "https://" + url;
+                        }
+                        browser.LoadUrl(url);
+                    }
+                }
+            }
         }
     }
 }

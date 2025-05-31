@@ -24,12 +24,12 @@ namespace BrowserTool.Browser
             // 清除默认菜单
             model.Clear();
             model.AddItem((CefMenuCommand)CMD_VIEW_SOURCE, "查看源代码");
-            model.AddItem((CefMenuCommand)CMD_COPY_URL, "复制URL");
+            model.AddItem((CefMenuCommand)CMD_COPY_URL, "复制网址");
             model.AddSeparator();
             model.AddItem((CefMenuCommand)CMD_DOWNLOAD_MANAGER, "下载管理器");
             model.AddSeparator();
             model.AddItem((CefMenuCommand)CMD_TOGGLE_URL_BAR, "显示/隐藏地址栏");
-            model.AddItem((CefMenuCommand)CMD_GO_TO_URL, "粘贴并前往");
+            model.AddItem((CefMenuCommand)CMD_GO_TO_URL, "粘贴并访问");
             model.AddSeparator();
             model.AddItem((CefMenuCommand)CMD_REFRESH, "刷新");
         }

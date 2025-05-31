@@ -597,18 +597,18 @@
                                     CustomPopupPlacementCallback="ContextMenu_PlacementCallback">
                             <MenuItem Header="刷新" Click="RefreshTabMenuItem_Click"/>
                             <MenuItem Header="复制网址" Click="CopyUrlMenuItem_Click"/>
-                            <MenuItem Header="复制标题" Click="CopyTitleMenuItem_Click"/>
+                            <MenuItem Header="复制标签页" Click="DuplicateTabMenuItem_Click"/>
+                            <!--<MenuItem Header="复制标题" Click="CopyTitleMenuItem_Click"/>-->
                             <Separator/>
-                            <MenuItem Header="复制" Click="CopyMenuItem_Click"/>
-                            <MenuItem Header="粘贴" Click="PasteMenuItem_Click"/>
+                            <!--<MenuItem Header="复制" Click="CopyMenuItem_Click"/>
+                            <MenuItem Header="粘贴" Click="PasteMenuItem_Click"/>-->
                             <MenuItem Header="粘贴并访问" Click="PasteAndGoMenuItem_Click"/>
                             <Separator/>
-                            <MenuItem Header="在新标签页中打开" Click="OpenInNewTabMenuItem_Click"/>
-                            <MenuItem Header="复制标签页" Click="DuplicateTabMenuItem_Click"/>
+                            <!--<MenuItem Header="在新标签页中打开" Click="OpenInNewTabMenuItem_Click"/>-->
                             <Separator/>
                             <MenuItem Header="关闭标签页" Click="CloseTabMenuItem_Click"/>
                             <MenuItem Header="关闭其他标签页" Click="CloseOtherTabsMenuItem_Click"/>
-                            <MenuItem Header="关闭右侧标签页" Click="CloseRightTabsMenuItem_Click"/>
+                            <!--<MenuItem Header="关闭右侧标签页" Click="CloseRightTabsMenuItem_Click"/>-->
                         </ContextMenu>
                     </TabControl.ContextMenu>
                     <TabControl.ContentTemplate>
