@@ -20,8 +20,51 @@ namespace BrowserTool
 {
     public partial class SettingsWindow : Window
     {
-        // 添加事件
+        // 添加事件，用于通知主窗口设置已更改
         public event EventHandler SettingsSaved;
+        
+        // 保存对主窗口的引用
+        private MainWindow mainWindow;
+        
+        // 触发设置已保存事件的辅助方法
+        private void RaiseSettingsSaved()
+        {
+            System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] 准备触发 SettingsSaved 事件，有订阅者: {SettingsSaved != null}");
+            SettingsSaved?.Invoke(this, EventArgs.Empty);
+            System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] SettingsSaved 事件已触发");
+            
+            // 尝试从实例变量获取主窗口引用
+            var mainWindowRef = mainWindow;
+            
+            // 如果实例变量为空，尝试从 Application.Current.MainWindow 获取
+            if (mainWindowRef == null && Application.Current != null && Application.Current.MainWindow is MainWindow)
+            {
+                mainWindowRef = Application.Current.MainWindow as MainWindow;
+                System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] 从 Application.Current.MainWindow 获取了 MainWindow 引用");
+            }
+            
+            // 如果有 MainWindow 引用，则直接刷新菜单
+            if (mainWindowRef != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] 准备直接刷新主窗口菜单");
+                mainWindowRef.Dispatcher.BeginInvoke(new Action(() => {
+                    try
+                    {
+                        // 直接调用主窗口的刷新菜单方法
+                        mainWindowRef.RefreshMenuFromSettings();
+                        System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] 主窗口菜单刷新完成");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] 刷新菜单时出错：{ex}");
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Render);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RaiseSettingsSaved] 无法获取 MainWindow 引用，无法直接刷新菜单");
+            }
+        }
 
         private ObservableCollection<SiteGroupViewModel> groups;
         private SiteGroupViewModel selectedGroup;
@@ -34,6 +77,51 @@ namespace BrowserTool
         {
             InitializeComponent();
             // 不要在这里调用LoadData或RefreshSites
+        }
+        
+        public SettingsWindow(MainWindow owner) : this()
+        {
+            this.mainWindow = owner;
+            System.Diagnostics.Debug.WriteLine("[SettingsWindow] 创建时设置了 MainWindow 引用");
+        }
+        
+        // 直接刷新主窗口菜单的方法
+        private void RefreshMainWindowMenu()
+        {
+            // 尝试从实例变量获取主窗口引用
+            var mainWindowRef = mainWindow;
+            
+            // 如果实例变量为空，尝试从 Application.Current.MainWindow 获取
+            if (mainWindowRef == null && Application.Current != null && Application.Current.MainWindow is MainWindow)
+            {
+                mainWindowRef = Application.Current.MainWindow as MainWindow;
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow.RefreshMainWindowMenu] 从 Application.Current.MainWindow 获取了 MainWindow 引用");
+            }
+            
+            if (mainWindowRef != null)
+            {
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow.RefreshMainWindowMenu] 直接调用主窗口刷新菜单方法");
+                mainWindowRef.Dispatcher.BeginInvoke(new Action(() => {
+                    try
+                    {
+                        // 调用主窗口的刷新菜单方法
+                        mainWindowRef.RefreshMenuFromSettings();
+                        System.Diagnostics.Debug.WriteLine("[SettingsWindow.RefreshMainWindowMenu] 主窗口菜单刷新完成");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RefreshMainWindowMenu] 刷新菜单时出错：{ex}");
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Render);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow.RefreshMainWindowMenu] 无法获取 MainWindow 引用，无法刷新菜单");
+                // 仅触发事件，不再调用其他方法，避免死循环
+                System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RefreshMainWindowMenu] 仅触发事件，有订阅者: {SettingsSaved != null}");
+                SettingsSaved?.Invoke(this, EventArgs.Empty);
+                System.Diagnostics.Debug.WriteLine($"[SettingsWindow.RefreshMainWindowMenu] 事件已触发");
+            }
         }
 
         private void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
@@ -137,7 +225,7 @@ namespace BrowserTool
                 SiteConfig.SaveGroup(newGroup);
                 groups.Add(new SiteGroupViewModel(newGroup));
                 // 触发设置保存事件
-                SettingsSaved?.Invoke(this, EventArgs.Empty);
+                RaiseSettingsSaved();
             }
         }
 
@@ -284,8 +372,8 @@ namespace BrowserTool
 
         private void btnSave_Click(object sender, RoutedEventArgs e)
         {
-            // 触发设置保存事件
-            SettingsSaved?.Invoke(this, EventArgs.Empty);
+            // 使用辅助方法触发设置保存事件
+            RaiseSettingsSaved();
             DialogResult = true;
             Close();
         }
@@ -475,8 +563,6 @@ namespace BrowserTool
                 }
                 catch { }
             }
-            previewWindow.Content = image;
-            previewWindow.Show();
         }
 
         private void btnEditGroup_Click(object sender, RoutedEventArgs e)
@@ -486,27 +572,56 @@ namespace BrowserTool
                 var dialog = new GroupEditDialog(group.Name);
                 if (dialog.ShowDialog() == true)
                 {
-                    // 更新组名
-                    group.Name = dialog.GroupName;
-                    var dbGroup = allGroups.FirstOrDefault(g => g.Id == group.Id);
-                    if (dbGroup != null)
+                    try
                     {
-                        dbGroup.Name = dialog.GroupName;
-                        SiteConfig.SaveGroup(dbGroup);
+                        // 记录当前组ID，用于后续重新选中
+                        int groupId = group.Id;
+                        string newName = dialog.GroupName;
+
+                        // 直接从数据库获取最新的组对象
+                        using (var context = new AppDbContext())
+                        {
+                            var dbGroup = context.SiteGroups.Find(groupId);
+                            if (dbGroup != null)
+                            {
+                                // 更新组名
+                                dbGroup.Name = newName;
+                                dbGroup.UpdateTime = DateTime.Now;
+                                context.SaveChanges();
+                            }
+                        }
+
+                        // 强制刷新数据
+                        allGroups = SiteConfig.GetAllGroups(); // 从数据库重新加载
+                        RefreshGroups();
+                        RefreshSites(currentSearchText, currentSearchType);
+
+                        // 保持选中（刷新后延迟聚焦）
+                        var targetGroup = groups.FirstOrDefault(g => g.Id == groupId);
+                        if (targetGroup != null)
+                        {
+                            Dispatcher.BeginInvoke(new Action(() => {
+                                var item = tvGroups.ItemContainerGenerator.ContainerFromItem(targetGroup) as TreeViewItem;
+                                if (item != null)
+                                {
+                                    item.IsSelected = true;
+                                }
+                            }), System.Windows.Threading.DispatcherPriority.Background);
+                        }
+
+                        // 调试输出
+                        System.Diagnostics.Debug.WriteLine($"[btnEditGroup_Click] 准备刷新主窗口菜单");
+
+                        // 直接刷新主窗口菜单
+                        RefreshMainWindowMenu();
+
+                        // 调试输出
+                        System.Diagnostics.Debug.WriteLine($"[btnEditGroup_Click] 刷新主窗口菜单已调用");
                     }
-                    RefreshGroups();
-                    // 保持选中（刷新后延迟聚焦）
-                    var targetGroup = groups.FirstOrDefault(g => g.Id == group.Id);
-                    if (targetGroup != null)
+                    catch (Exception ex)
                     {
-                        Dispatcher.BeginInvoke(new Action(() => {
-                            var item = tvGroups.ItemContainerGenerator.ContainerFromItem(targetGroup) as TreeViewItem;
-                            if (item != null)
-                                item.IsSelected = true;
-                        }), System.Windows.Threading.DispatcherPriority.Background);
+                        MessageBox.Show($"更新分组名称时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
-                    // 触发设置保存事件
-                    SettingsSaved?.Invoke(this, EventArgs.Empty);
                 }
             }
             else

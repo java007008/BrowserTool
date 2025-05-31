@@ -1,7 +1,9 @@
 using CefSharp;
-using CefSharp.Wpf;
+using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls.Primitives;
 using BrowserTool;
 
@@ -17,7 +19,8 @@ namespace BrowserTool.Browser
         private const int CMD_DOWNLOAD_MANAGER = 26503;
         private const int CMD_TOGGLE_URL_BAR = 26504;
         private const int CMD_GO_TO_URL = 26505;
-        private const int CMD_REFRESH = 26506;
+        private const int CMD_GO_TO_URL_NEW_WINDOW = 26506;
+        private const int CMD_REFRESH = 26507;
 
         public void OnBeforeContextMenu(IWebBrowser browserControl, IBrowser browser, IFrame frame, IContextMenuParams parameters, IMenuModel model)
         {
@@ -30,6 +33,7 @@ namespace BrowserTool.Browser
             model.AddSeparator();
             model.AddItem((CefMenuCommand)CMD_TOGGLE_URL_BAR, "显示/隐藏地址栏");
             model.AddItem((CefMenuCommand)CMD_GO_TO_URL, "粘贴并访问");
+            model.AddItem((CefMenuCommand)CMD_GO_TO_URL_NEW_WINDOW, "粘贴并在新标签页中访问");
             model.AddSeparator();
             model.AddItem((CefMenuCommand)CMD_REFRESH, "刷新");
         }
@@ -43,6 +47,27 @@ namespace BrowserTool.Browser
                 if (!string.IsNullOrWhiteSpace(clipboardText) && (clipboardText.StartsWith("http://") || clipboardText.StartsWith("https://")))
                 {
                     browserControl.Load(clipboardText);
+                }
+                return true;
+            }
+            //粘贴并在新标签页中访问
+            if ((int)commandId == CMD_GO_TO_URL_NEW_WINDOW)
+            {
+                string clipboardText = Clipboard.GetText();
+                if (!string.IsNullOrWhiteSpace(clipboardText) && (clipboardText.StartsWith("http://") || clipboardText.StartsWith("https://")))
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                        var mainWindow = System.Windows.Application.Current.MainWindow as MainWindow;
+                        if (mainWindow != null)
+                        {
+                            // 在新标签页中打开URL
+                            // 直接使用 OpenUrlInTab 方法，并设置初始标题为 "Loading..."
+                            // 浏览器会自动更新标题为网站标题
+                            mainWindow.Dispatcher.BeginInvoke(new Action(() => {
+                                mainWindow.OpenUrlInTab("Loading...", clipboardText);
+                            }));
+                        }
+                    });
                 }
                 return true;
             }

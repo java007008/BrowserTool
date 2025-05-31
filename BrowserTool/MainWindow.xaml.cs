@@ -1,24 +1,34 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.IO;
+using System.Diagnostics;
+using System.Xml;
+using System.Windows.Threading;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
+using System.Security.Policy;
 using CefSharp;
 using CefSharp.Wpf;
 using BrowserTool.Browser;
-using System.ComponentModel;
-using System.IO;
-using System.Windows.Media.Imaging;
-using System.Runtime.InteropServices;
-using System.Windows.Interop;
-using System.Collections.Generic;
-using System.Security.Policy;
-using BrowserTool.Database.Entities;
-using System.Windows.Threading;
 using BrowserTool.Database;
+using BrowserTool.Database.Entities;
 using BrowserTool.Utils;
 
 namespace BrowserTool
@@ -164,14 +174,32 @@ namespace BrowserTool
             var selected = MenuTree.SelectedItem as TreeViewItem;
             if (selected?.Tag is MenuItemData data)
             {
-                OpenUrlInTab(data.Name, data.Url);
+                // 获取父级菜单项（一级菜单）
+                var parentItem = selected.Parent as TreeViewItem;
+                if (parentItem != null)
+                {
+                    // 获取一级菜单的名称（根据InitMenuTree方法，一级菜单的Header是直接设置为字符串的）
+                    string parentName = parentItem.Header?.ToString() ?? "";
+                    
+                    // 组合标题：一级菜单名-二级菜单名
+                    string combinedTitle = $"{parentName}-{data.Name}";
+                    
+                    // 打开标签页，使用组合后的标题
+                    OpenUrlInTab(combinedTitle, data.Url);
+                }
+                else
+                {
+                    // 如果没有找到父级菜单项，则使用原始标题
+                    OpenUrlInTab(data.Name, data.Url);
+                }
             }
         }
 
         /// <summary>
         /// 在Tab中打开网址（使用CefSharp浏览器）
         /// </summary>
-        private void OpenUrlInTab(string title, string url)
+        /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
+        public TabItem OpenUrlInTab(string title, string url)
         {
             // 检查是否已存在相同URL的标签页
             foreach (TabItem tab in MainTabControl.Items)
@@ -179,7 +207,7 @@ namespace BrowserTool
                 if (tab.Tag is TabInfo tabInfo && tabInfo.Url == url)
                 {
                     MainTabControl.SelectedItem = tab;
-                    return;
+                    return tab;
                 }
             }
             
@@ -188,6 +216,42 @@ namespace BrowserTool
             
             // 从浏览器实例管理器获取浏览器实例
             var newBrowser = Browser.BrowserInstanceManager.Instance.GetBrowser(url, tabId);
+            
+            // 使用 FrameLoadEnd 事件来获取页面标题
+            EventHandler<FrameLoadEndEventArgs> titleUpdateHandler = null;
+            titleUpdateHandler = (sender, args) => 
+            {
+                if (args.Frame.IsMain)
+                {
+                    // 使用 JavaScript 执行获取页面标题
+                    args.Frame.EvaluateScriptAsync("document.title").ContinueWith(t => 
+                    {
+                        if (!t.IsFaulted && t.Result.Success && t.Result.Result != null)
+                        {
+                            string pageTitle = t.Result.Result.ToString();
+                            if (!string.IsNullOrWhiteSpace(pageTitle))
+                            {
+                                Dispatcher.BeginInvoke(new Action(() => 
+                                {
+                                    // 查找对应的标签页
+                                    foreach (TabItem tab in MainTabControl.Items)
+                                    {
+                                        if (tab.Tag is TabInfo info && info.TabId == tabId)
+                                        {
+                                            tab.Header = pageTitle;
+                                            System.Diagnostics.Debug.WriteLine($"[标签页标题已更新] {pageTitle}");
+                                            break;
+                                        }
+                                    }
+                                }));
+                            }
+                        }
+                    });
+                }
+            };
+            
+            // 添加标题更新事件处理
+            newBrowser.FrameLoadEnd += titleUpdateHandler;
             
             var browserContext = new BrowserContext { IsLoading = true };
             
@@ -248,6 +312,7 @@ namespace BrowserTool
             {
                 // 取消事件订阅
                 newBrowser.LoadingStateChanged -= loadingStateChangedHandler;
+                newBrowser.FrameLoadEnd -= titleUpdateHandler;
                 
                 // 释放浏览器实例
                 if (sender is TabItem tab && tab.Tag is TabInfo info)
@@ -258,6 +323,8 @@ namespace BrowserTool
             
             MainTabControl.Items.Add(tabItem);
             MainTabControl.SelectedItem = tabItem;
+            
+            return tabItem;
         }
         
         /// <summary>
@@ -1059,26 +1126,79 @@ namespace BrowserTool
 
         private void btnSettings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow();
-            // 订阅设置保存事件
-            settingsWindow.SettingsSaved += (s, args) => {
-                // 使用 Dispatcher 确保在 UI 线程上执行
-                Dispatcher.BeginInvoke(new Action(() => {
-                    try
-                    {
-                        // 重新加载菜单
-                        LoadMenuGroupsFromDb();
-                        // 强制刷新 UI
-                        MenuTree.Items.Refresh();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"刷新菜单时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }), System.Windows.Threading.DispatcherPriority.Render);
-            };
+            // 创建设置窗口，并传递主窗口引用
+            var settingsWindow = new SettingsWindow(this);
             
-            settingsWindow.ShowDialog();
+            // 确保在显示对话框之前订阅事件
+            System.Diagnostics.Debug.WriteLine("[MainWindow.btnSettings_Click] 准备订阅 SettingsSaved 事件");
+            
+            // 使用具名方法而不是匿名方法，以便于调试
+            settingsWindow.SettingsSaved += SettingsWindow_SettingsSaved;
+            
+            // 显示对话框
+            bool? result = settingsWindow.ShowDialog();
+            
+            // 对话框关闭后，无论如何都刷新菜单（不依赖事件）
+            System.Diagnostics.Debug.WriteLine("[MainWindow.btnSettings_Click] 设置窗口已关闭，准备刷新菜单");
+            
+            // 刷新菜单
+            RefreshMenuFromSettings();
+        }
+        
+        /// <summary>
+        /// 刷新主窗口菜单，可以被设置窗口直接调用
+        /// </summary>
+        public void RefreshMenuFromSettings()
+        {
+            // 使用 Dispatcher 确保在 UI 线程上执行
+            Dispatcher.BeginInvoke(new Action(() => {
+                try
+                {
+                    // 调试输出
+                    System.Diagnostics.Debug.WriteLine("[MainWindow.RefreshMenuFromSettings] 开始重新加载菜单");
+                    
+                    // 重新加载菜单
+                    LoadMenuGroupsFromDb();
+                    // 强制刷新 UI
+                    MenuTree.Items.Refresh();
+                    
+                    // 调试输出
+                    System.Diagnostics.Debug.WriteLine("[MainWindow.RefreshMenuFromSettings] 菜单刷新完成");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow.RefreshMenuFromSettings] 刷新菜单时出错：{ex}");
+                    MessageBox.Show($"刷新菜单时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }), System.Windows.Threading.DispatcherPriority.Render);
+        }
+
+        private void SettingsWindow_SettingsSaved(object sender, EventArgs args)
+        {
+            // 调试输出
+            System.Diagnostics.Debug.WriteLine("[MainWindow] SettingsSaved 事件被触发，准备刷新菜单");
+            
+            // 使用 Dispatcher 确保在 UI 线程上执行
+            Dispatcher.BeginInvoke(new Action(() => {
+                try
+                {
+                    // 调试输出
+                    System.Diagnostics.Debug.WriteLine("[MainWindow] 开始重新加载菜单");
+                    
+                    // 重新加载菜单
+                    LoadMenuGroupsFromDb();
+                    // 强制刷新 UI
+                    MenuTree.Items.Refresh();
+                    
+                    // 调试输出
+                    System.Diagnostics.Debug.WriteLine("[MainWindow] 菜单刷新完成");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] 刷新菜单时出错：{ex}");
+                    MessageBox.Show($"刷新菜单时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }), System.Windows.Threading.DispatcherPriority.Render);
         }
 
         /// <summary>
@@ -1161,5 +1281,7 @@ namespace BrowserTool
                 }
             }
         }
+        
+
     }
 }
