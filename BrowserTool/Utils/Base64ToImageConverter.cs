@@ -14,8 +14,8 @@ namespace BrowserTool.Utils
             {
                 if (value == null || !(value is string base64String) || string.IsNullOrEmpty(base64String))
                 {
-                    // 返回默认图标
-                    return new BitmapImage(new Uri("pack://application:,,,/Resources/default_icon.png"));
+                    // 返回null表示不使用图标
+                    return null;
                 }
 
                 // 尝试将Base64字符串转换为图像
@@ -34,8 +34,8 @@ namespace BrowserTool.Utils
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Base64ToImageConverter转换错误: {ex.Message}");
-                // 转换失败时返回默认图标
-                return new BitmapImage(new Uri("pack://application:,,,/Resources/default_icon.png"));
+                // 转换失败时返回null
+                return null;
             }
         }
 
