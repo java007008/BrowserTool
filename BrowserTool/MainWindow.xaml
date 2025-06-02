@@ -15,6 +15,13 @@
         Icon="Resources/app.ico"
         ResizeMode="CanResize"
         SizeChanged="MainWindow_SizeChanged">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" 
+                      ResizeBorderThickness="5"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
 
 
 

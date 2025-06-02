@@ -29,6 +29,7 @@ namespace BrowserTool
     /// </summary>
     public partial class App : Application
     {
+        private static readonly object _cefInitLock = new object();
         private MainWindow mainWindow;
         private static Mutex mutex = new Mutex(true, "BrowserTool_SingleInstance");
         private static bool mutexOwned = false; // 跟踪是否拥有Mutex
@@ -285,60 +286,70 @@ namespace BrowserTool
         {
             if (Cef.IsInitialized != true)
             {
-                try
+                lock (_cefInitLock)
                 {
-                    var settings = new CefSettings();
-                    
-                    // 设置缓存路径为exe所在目录下的CEF文件夹
-                    string exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                    string cachePath = Path.Combine(exePath, "CEF");
-                    if (!Directory.Exists(cachePath))
+                    if (Cef.IsInitialized != true)
                     {
-                        Directory.CreateDirectory(cachePath);
+                        try
+                        {
+                            var settings = new CefSettings();
+
+                            // 设置缓存路径为exe所在目录下的CEF文件夹
+                            string exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                            string cachePath = Path.Combine(exePath, "CEF");
+                            if (!Directory.Exists(cachePath))
+                            {
+                                Directory.CreateDirectory(cachePath);
+                            }
+                            settings.CachePath = cachePath;
+
+                            // 设置用户数据路径也在exe所在目录下
+                            string userDataPath = Path.Combine(exePath, @"CEF\UserData");
+                            if (!Directory.Exists(userDataPath))
+                            {
+                                Directory.CreateDirectory(userDataPath);
+                            }
+                            // UserDataPath不是CefSettings的属性，使用RootCachePath代替
+                            // 在新版本中，用户数据会存储在缓存目录下的User Data文件夹中
+
+                            // 设置日志文件路径
+                            string logPath = Path.Combine(exePath, @"CEF\Log");
+                            if (!Directory.Exists(logPath))
+                            {
+                                Directory.CreateDirectory(logPath);
+                            }
+                            settings.LogFile = Path.Combine(logPath, "cef.log");
+
+                            // 性能优化设置
+
+                            // 本地语言为中文
+                            settings.Locale = "zh-CN";
+
+                            // 自动保存用户数据（默认就在 CachePath 下）
+                            settings.PersistSessionCookies = true;
+
+                            // 启用硬件加速
+                            settings.CefCommandLineArgs.Add("enable-gpu", "1");
+                            settings.CefCommandLineArgs.Add("enable-gpu-compositing", "1");
+                            settings.CefCommandLineArgs.Add("enable-gpu-rasterization", "1");
+
+                            // 内存优化
+                            settings.CefCommandLineArgs.Add("disable-gpu-shader-disk-cache", "1");
+                            settings.CefCommandLineArgs.Add("renderer-process-limit", "1");
+                            settings.CefCommandLineArgs.Add("disable-extensions", "1");
+
+                            // 禁用自动更新检查
+                            settings.CefCommandLineArgs.Add("disable-component-update", "1");
+
+                            // 初始化CEF
+                            Cef.Initialize(settings);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"CEF初始化失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                            Shutdown();
+                        }
                     }
-                    settings.CachePath = cachePath;
-                    
-                    // 设置用户数据路径也在exe所在目录下
-                    string userDataPath = Path.Combine(exePath, @"CEF\UserData");
-                    if (!Directory.Exists(userDataPath))
-                    {
-                        Directory.CreateDirectory(userDataPath);
-                    }
-                    // UserDataPath不是CefSettings的属性，使用RootCachePath代替
-                    // 在新版本中，用户数据会存储在缓存目录下的User Data文件夹中
-                    
-                    // 设置日志文件路径
-                    string logPath = Path.Combine(exePath, @"CEF\Log");
-                    if (!Directory.Exists(logPath))
-                    {
-                        Directory.CreateDirectory(logPath);
-                    }
-                    settings.LogFile = Path.Combine(logPath, "cef.log");
-                    
-                    // 性能优化设置
-                    settings.PersistSessionCookies = true;
-                    // 用户偏好会自动保存到缓存目录
-                    
-                    // 启用硬件加速
-                    settings.CefCommandLineArgs.Add("enable-gpu", "1");
-                    settings.CefCommandLineArgs.Add("enable-gpu-compositing", "1");
-                    settings.CefCommandLineArgs.Add("enable-gpu-rasterization", "1");
-                    
-                    // 内存优化
-                    settings.CefCommandLineArgs.Add("disable-gpu-shader-disk-cache", "1");
-                    settings.CefCommandLineArgs.Add("renderer-process-limit", "1");
-                    settings.CefCommandLineArgs.Add("disable-extensions", "1");
-                    
-                    // 禁用自动更新检查
-                    settings.CefCommandLineArgs.Add("disable-component-update", "1");
-                    
-                    // 初始化CEF
-                    Cef.Initialize(settings);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"CEF初始化失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                    Shutdown();
                 }
             }
         }
