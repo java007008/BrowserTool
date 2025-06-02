@@ -5,6 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Media;
@@ -13,10 +14,13 @@ using System.Windows.Interop;
 using System.IO;
 using System.Threading;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Hardcodet.Wpf.TaskbarNotification;
 using BrowserTool.Database;
 using CefSharp;
 using CefSharp.Wpf;
+using System.IO.Pipes;
+using System.Text;
 
 namespace BrowserTool
 {
@@ -27,6 +31,34 @@ namespace BrowserTool
     {
         private MainWindow mainWindow;
         private static Mutex mutex = new Mutex(true, "BrowserTool_SingleInstance");
+        private static bool mutexOwned = false; // 跟踪是否拥有Mutex
+        private Thread pipeServerThread; // 命名管道服务器线程
+        
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern int RegisterWindowMessage(string lpString);
+
+        private const int SW_RESTORE = 9;
+        private const int HWND_BROADCAST = 0xFFFF;
+        private static readonly int WM_SHOWMAINWINDOW_CUSTOM = RegisterWindowMessage("BrowserTool_ShowMainWindow");
+
+        // Win32 API 导入
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -35,24 +67,32 @@ namespace BrowserTool
             try
             {
                 // 检查是否已经有实例在运行
-                if (!mutex.WaitOne(TimeSpan.Zero, true))
+                if (mutex.WaitOne(TimeSpan.Zero, false))
                 {
-                    // 查找已运行进程并激活主窗口
-                    var current = System.Diagnostics.Process.GetCurrentProcess();
-                    var processes = System.Diagnostics.Process.GetProcessesByName(current.ProcessName);
-                    foreach (var process in processes)
+                    mutexOwned = true;
+                    
+                    // 启动命名管道服务器，用于接收其他实例发送的URL
+                    StartPipeServer();
+                }
+                else
+                {
+                    // 已有实例在运行，发送URL到主实例
+                    if (e.Args != null && e.Args.Length > 0)
                     {
-                        if (process.Id != current.Id)
+                        string url = e.Args[0];
+                        if (!string.IsNullOrWhiteSpace(url) && 
+                            (url.StartsWith("http://") || url.StartsWith("https://") || url.StartsWith("file://")))
                         {
-                            IntPtr hWnd = process.MainWindowHandle;
-                            if (hWnd != IntPtr.Zero)
-                            {
-                                if (IsIconic(hWnd))
-                                    ShowWindow(hWnd, SW_RESTORE);
-                                SetForegroundWindow(hWnd);
-                            }
-                            break;
+                            // 通过命名管道发送URL
+                            SendUrlToPipe(url);
                         }
+                    }
+                    
+                    // 向已存在的窗口发送消息
+                    IntPtr hWnd = FindWindow(null, "Browser Tool");
+                    if (hWnd != IntPtr.Zero)
+                    {
+                        PostMessage(hWnd, WM_SHOWMAINWINDOW_CUSTOM, IntPtr.Zero, IntPtr.Zero);
                     }
                     Shutdown();
                     return;
@@ -79,9 +119,25 @@ namespace BrowserTool
                 }
                 trayIcon.TrayMouseDoubleClick += TrayIcon_TrayMouseDoubleClick;
 
-                // 创建并显示主窗口
+                // 创建主窗口
                 mainWindow = new MainWindow();
                 this.MainWindow = mainWindow;
+
+                // 处理命令行参数（当作为默认浏览器启动时）
+                if (e.Args != null && e.Args.Length > 0)
+                {
+                    string url = e.Args[0];
+                    if (!string.IsNullOrWhiteSpace(url) && 
+                        (url.StartsWith("http://") || url.StartsWith("https://") || url.StartsWith("file://")))
+                    {
+                        // 在主窗口中打开URL
+                        mainWindow.Dispatcher.Invoke(() => 
+                        {
+                            mainWindow.OpenUrlInTab("Loading...", url, false);
+                           
+                        });
+                    }
+                }
 
                 // 监听主窗口关闭事件
                 mainWindow.Closing += (s, args) =>
@@ -94,6 +150,15 @@ namespace BrowserTool
                 var loginWindow = new LoginWindow();
                 if (loginWindow.ShowDialog() == true)
                 {
+                    // 设置登录状态
+                    Utils.LoginManager.SetLoggedIn();
+                    
+                    // 订阅登录状态改变事件，用于更新托盘菜单
+                    Utils.LoginManager.OnLoginStatusChanged += UpdateTrayMenuState;
+                    
+                    // 初始化托盘菜单状态
+                    UpdateTrayMenuState(true);
+                    
                     mainWindow.Show();
                     mainWindow.WindowState = WindowState.Normal;
                     mainWindow.Activate();
@@ -113,9 +178,15 @@ namespace BrowserTool
         // 托盘菜单事件
         private void TrayMenu_Settings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow();
-            settingsWindow.Owner = mainWindow;
-            settingsWindow.ShowDialog();
+            // 检查登录状态
+            if (Utils.LoginManager.IsLoggedIn)
+            {
+                var settingsWindow = new SettingsWindow();
+                settingsWindow.Owner = mainWindow;
+                settingsWindow.ShowDialog();
+            }
+            
+           
         }
 
         private void TrayMenu_Exit_Click(object sender, RoutedEventArgs e)
@@ -125,14 +196,54 @@ namespace BrowserTool
 
         private void TrayMenu_ChangePassword_Click(object sender, RoutedEventArgs e)
         {
-            var win = new ChangePasswordWindow();
-            win.Owner = mainWindow;
-            win.ShowDialog();
+            // 检查登录状态
+            if (Utils.LoginManager.IsLoggedIn)
+            {
+                var win = new ChangePasswordWindow();
+                win.Owner = mainWindow;
+                win.ShowDialog();
+            }
+           
+        }
+
+        private void TrayMenu_Show_Click(object sender, RoutedEventArgs e)
+        {
+            // 检查登录状态
+            if (Utils.LoginManager.IsLoggedIn)
+            {
+                ShowMainWindow();
+            }
+            
+        }
+
+        private void TrayIcon_TrayMouseDoubleClick(object sender, RoutedEventArgs e)
+        {
+            ShowMainWindow();
+        }
+
+        public void ShowMainWindow()
+        {
+            if (mainWindow != null)
+            {
+                mainWindow.Show();
+                mainWindow.WindowState = WindowState.Normal;
+                mainWindow.Activate();
+                mainWindow.Topmost = true;  // 确保窗口在最前面
+                mainWindow.Topmost = false; // 然后取消置顶
+            }
+        }
+
+        public static App GetCurrentApp()
+        {
+            return Current as App;
         }
 
         protected override void OnExit(ExitEventArgs e)
         {
-            mutex.ReleaseMutex();
+            if (mutexOwned)
+            {
+                mutex.ReleaseMutex();
+            }
             
             try
             {
@@ -156,6 +267,13 @@ namespace BrowserTool
                 // 记录异常但不阻止应用程序退出
                 System.Diagnostics.Debug.WriteLine($"应用程序退出清理异常: {ex.Message}");
             }
+            
+            // 停止命名管道服务器
+            try
+            {
+                pipeServerThread?.Abort();
+            }
+            catch { }
             
             base.OnExit(e);
         }
@@ -225,18 +343,6 @@ namespace BrowserTool
             }
         }
 
-        // Win32 API 导入
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool IsIconic(IntPtr hWnd);
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        private const int SW_RESTORE = 9;
-
         private Icon CreateDynamicIcon()
         {
             // 创建32x32蓝底白字B的图标
@@ -263,14 +369,100 @@ namespace BrowserTool
                 }
             }
         }
-
-        private void TrayIcon_TrayMouseDoubleClick(object sender, RoutedEventArgs e)
+        
+        private void UpdateTrayMenuState(bool isLoggedIn)
         {
-            if (mainWindow != null)
+            // 根据登录状态更新托盘菜单
+            var trayIcon = (TaskbarIcon)Current.Resources["TrayIcon"];
+            if (trayIcon?.ContextMenu != null)
             {
-                mainWindow.Show();
-                mainWindow.WindowState = WindowState.Normal;
-                mainWindow.Activate();
+                foreach (var item in trayIcon.ContextMenu.Items)
+                {
+                    if (item is MenuItem menuItem)
+                    {
+                        if (menuItem.Header?.ToString() == "设置")
+                        {
+                            menuItem.IsEnabled = isLoggedIn;
+                            menuItem.ToolTip = isLoggedIn ? null : "请先登录后再使用设置功能";
+                        }
+                        else if (menuItem.Header?.ToString() == "修改密码")
+                        {
+                            menuItem.IsEnabled = isLoggedIn;
+                            menuItem.ToolTip = isLoggedIn ? null : "请先登录后再修改密码";
+                        }
+                    }
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"[托盘菜单状态更新] 登录状态: {isLoggedIn}");
+            }
+        }
+        
+        /// <summary>
+        /// 启动命名管道服务器，用于接收其他实例发送的URL
+        /// </summary>
+        private void StartPipeServer()
+        {
+            pipeServerThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        using (var pipeServer = new NamedPipeServerStream("BrowserToolUrlPipe", PipeDirection.In))
+                        {
+                            pipeServer.WaitForConnection();
+                            
+                            using (var reader = new StreamReader(pipeServer, Encoding.UTF8))
+                            {
+                                string url = reader.ReadLine();
+                                if (!string.IsNullOrWhiteSpace(url))
+                                {
+                                    // 在UI线程中打开URL
+                                    Dispatcher.BeginInvoke(new Action(() =>
+                                    {
+                                        if (mainWindow != null)
+                                        {
+                                            mainWindow.OpenUrlInTab("Loading...", url, false);
+                                            ShowMainWindow();
+                                        }
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[命名管道服务器错误] {ex.Message}");
+                    }
+                }
+            })
+            {
+                IsBackground = true
+            };
+            pipeServerThread.Start();
+        }
+        
+        /// <summary>
+        /// 通过命名管道发送URL到主实例
+        /// </summary>
+        private static void SendUrlToPipe(string url)
+        {
+            try
+            {
+                using (var pipeClient = new NamedPipeClientStream(".", "BrowserToolUrlPipe", PipeDirection.Out))
+                {
+                    pipeClient.Connect(1000); // 1秒超时
+                    
+                    using (var writer = new StreamWriter(pipeClient, Encoding.UTF8))
+                    {
+                        writer.WriteLine(url);
+                        writer.Flush();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[发送URL到管道失败] {ex.Message}");
             }
         }
     }

@@ -13,12 +13,101 @@
         BorderThickness="0"
         BorderBrush="Transparent"
         Icon="Resources/app.ico"
-        ResizeMode="CanResize">
+        ResizeMode="CanResize"
+        SizeChanged="MainWindow_SizeChanged">
+
+
 
     <Window.Resources>
         <local:IsTreeViewRootConverter x:Key="IsTreeViewRootConverter"/>
         <!-- 布尔值转可见性转换器（用于界面元素的显示与隐藏） -->
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <!-- 深色滚动条样式 -->
+        <Style x:Key="DarkScrollBarStyle" TargetType="ScrollBar">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Foreground" Value="#686868"/>
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}" 
+                                    BorderBrush="{TemplateBinding BorderBrush}" 
+                                    BorderThickness="1" 
+                                    CornerRadius="6"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb Style="{DynamicResource DarkScrollBarThumbStyle}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色滚动条滑块样式 -->
+        <Style x:Key="DarkScrollBarThumbStyle" TargetType="Thumb">
+            <Setter Property="Background" Value="#686868"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="0" 
+                                CornerRadius="6"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#9E9E9E"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter Property="Background" Value="#BFBFBF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色ScrollViewer样式 -->
+        <Style x:Key="DarkScrollViewerStyle" TargetType="ScrollViewer">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ScrollContentPresenter Grid.Column="0" Grid.Row="0"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" 
+                                       Grid.Column="1" Grid.Row="0"
+                                       Style="{StaticResource DarkScrollBarStyle}"
+                                       Orientation="Vertical" 
+                                       Value="{TemplateBinding VerticalOffset}" 
+                                       Maximum="{TemplateBinding ScrollableHeight}" 
+                                       ViewportSize="{TemplateBinding ViewportHeight}" 
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            <ScrollBar x:Name="PART_HorizontalScrollBar" 
+                                       Grid.Column="0" Grid.Row="1"
+                                       Style="{StaticResource DarkScrollBarStyle}"
+                                       Orientation="Horizontal" 
+                                       Value="{TemplateBinding HorizontalOffset}" 
+                                       Maximum="{TemplateBinding ScrollableWidth}" 
+                                       ViewportSize="{TemplateBinding ViewportWidth}" 
+                                       Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- 抽屉开关按钮的自定义样式（汉堡菜单按钮） -->
         <Style x:Key="DrawerToggleButtonStyle" TargetType="Button">
@@ -74,7 +163,7 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="4">
-                            <ScrollViewer Padding="{TemplateBinding Padding}" Focusable="False">
+                            <ScrollViewer Padding="{TemplateBinding Padding}" Focusable="False" Style="{StaticResource DarkScrollViewerStyle}">
                                 <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
                             </ScrollViewer>
                         </Border>
@@ -259,10 +348,10 @@
         </Grid.RowDefinitions>
 
         <!-- 顶部自定义标题栏（包含窗口控制按钮和Logo） -->
-        <DockPanel Grid.Row="0" Height="40" Background="#141414" Margin="0">
-            <!-- 右上角窗口控制按钮区域（抽屉、最小化、最大化、关闭） -->
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                <!-- 抽屉开关按钮（汉堡菜单） -->
+        <DockPanel Grid.Row="0" Height="40" Background="#141414" Margin="0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <!-- 左侧Logo或标题 -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" HorizontalAlignment="Left">
+                <TextBlock Text="Tool" Foreground="#EEE" FontSize="16" VerticalAlignment="Center" Margin="16,0,0,0"/>
                 <Button x:Name="DrawerToggleBtn" Width="40" Height="40" Margin="0,0,8,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Cursor="Hand" Click="DrawerToggleBtn_Click">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -296,6 +385,51 @@
                         </Style>
                     </Button.Style>
                 </Button>
+                <!-- 测试环境按钮 -->
+                <Button x:Name="TestEnvButton" Width="40" Height="40" Margin="0,0,8,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Cursor="Hand" Click="TestEnvButton_Click" ToolTip="测试环境">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Grid>
+                                            <Border x:Name="BackgroundBorder" Background="Transparent"/>
+                                            <Viewbox Width="20" Height="20" Stretch="Uniform">
+                                                <Canvas Width="24" Height="24">
+                                                    <!-- 蜘蛛图标 -->
+                                                    <!-- 蜘蛛身体 -->
+                                                    <Ellipse Fill="#AAA" Canvas.Left="10" Canvas.Top="8" Width="4" Height="8"/>
+                                                    <!-- 蜘蛛头部 -->
+                                                    <Ellipse Fill="#AAA" Canvas.Left="10.5" Canvas.Top="6" Width="3" Height="3"/>
+                                                    <!-- 蜘蛛腿 - 左侧 -->
+                                                    <Path Fill="#AAA" Data="M8,9 L4,6 L3,7 L7,10 Z"/>
+                                                    <Path Fill="#AAA" Data="M8,11 L3,9 L2,10 L7,12 Z"/>
+                                                    <Path Fill="#AAA" Data="M8,13 L4,16 L5,17 L9,14 Z"/>
+                                                    <Path Fill="#AAA" Data="M8,15 L3,18 L4,19 L9,16 Z"/>
+                                                    <!-- 蜘蛛腿 - 右侧 -->
+                                                    <Path Fill="#AAA" Data="M16,9 L20,6 L21,7 L17,10 Z"/>
+                                                    <Path Fill="#AAA" Data="M16,11 L21,9 L22,10 L17,12 Z"/>
+                                                    <Path Fill="#AAA" Data="M16,13 L20,16 L19,17 L15,14 Z"/>
+                                                    <Path Fill="#AAA" Data="M16,15 L21,18 L20,19 L15,16 Z"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BackgroundBorder" Property="Background" Value="#555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+            </StackPanel>
+            <!-- 右上角窗口控制按钮区域（测试环境、最小化、最大化、关闭） -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                 <!-- 最小化按钮 -->
                 <Button Width="40" Height="40" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Click="MinimizeButton_Click">
                     <Button.Style>
@@ -396,8 +530,6 @@
                     </Button.Style>
                 </Button>
             </StackPanel>
-            <!-- 可选：左侧Logo或标题 -->
-            <TextBlock Text="Tool" Foreground="#EEE" FontSize="16" VerticalAlignment="Center" Margin="16,0,0,0"/>
         </DockPanel>
 
         <!-- 主内容区（包含左侧菜单和右侧TabControl） -->

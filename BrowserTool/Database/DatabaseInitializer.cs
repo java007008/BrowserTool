@@ -1,7 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using System;
 using System.IO;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace BrowserTool.Database
 {

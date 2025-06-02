@@ -10,6 +10,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
@@ -30,6 +31,7 @@ using BrowserTool.Browser;
 using BrowserTool.Database;
 using BrowserTool.Database.Entities;
 using BrowserTool.Utils;
+using Hardcodet.Wpf.TaskbarNotification;
 
 namespace BrowserTool
 {
@@ -51,6 +53,7 @@ namespace BrowserTool
         public class MenuGroup
         {
             public string GroupName { get; set; }
+            public bool IsDefaultExpanded { get; set; }
             public List<MenuItemData> Items { get; set; }
         }
         public class MenuItemData
@@ -80,6 +83,7 @@ namespace BrowserTool
             try
             {
                 InitializeComponent();
+                this.SourceInitialized += MainWindow_SourceInitialized;
                 _mouseActivitySimulator = new MouseActivitySimulator();
                 _mouseActivitySimulator.Start(); // 程序启动时自动启动鼠标活动模拟
                 LoadMenuGroupsFromDb();
@@ -93,12 +97,52 @@ namespace BrowserTool
 
                 // 订阅数据变更事件
                 SiteConfig.DataChanged += OnDataChanged;
+
+                // 添加Windows消息处理
+                this.SourceInitialized += MainWindow_SourceInitialized;
             }
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show("MainWindow 初始化异常: " + ex.Message);
                 Application.Current.Shutdown();
             }
+        }
+
+        // Windows消息常量
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern int RegisterWindowMessage(string lpString);
+        
+        private static readonly int WM_SHOWMAINWINDOW = RegisterWindowMessage("BrowserTool_ShowMainWindow");
+
+        // 窗口消息处理
+        private void MainWindow_SourceInitialized(object sender, EventArgs e)
+        {
+            HwndSource source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+            source.AddHook(WndProc);
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_SHOWMAINWINDOW)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] 收到WM_SHOWMAINWINDOW消息: {msg}");
+                // 收到显示主窗口的消息，调用App的ShowMainWindow方法
+                this.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    var app = App.GetCurrentApp();
+                    if (app != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine("[MainWindow] 调用App.ShowMainWindow");
+                        app.ShowMainWindow();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("[MainWindow] App实例为null");
+                    }
+                }));
+                handled = true;
+            }
+            return IntPtr.Zero;
         }
 
         private void OnDataChanged(object sender, EventArgs e)
@@ -131,7 +175,7 @@ namespace BrowserTool
                     continue; // 搜索时无匹配则不显示该分组
 
                 // 一级菜单：Header 直接用字符串，保留小三角和收缩功能
-                var groupItem = new TreeViewItem { Header = group.GroupName, IsExpanded = true };
+                var groupItem = new TreeViewItem { Header = group.GroupName, IsExpanded = group.IsDefaultExpanded };
 
                 foreach (var item in filteredItems)
                 {
@@ -196,6 +240,77 @@ namespace BrowserTool
         }
 
         /// <summary>
+        /// 处理TreeView双击事件，实现一级菜单的展开/收缩
+        /// </summary>
+        private void MenuTree_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine($"[双击事件] MouseDoubleClick 被触发");
+            
+            // 获取双击的TreeViewItem
+            var hitTest = e.OriginalSource as DependencyObject;
+            TreeViewItem clickedItem = null;
+            
+            // 向上查找TreeViewItem
+            while (hitTest != null)
+            {
+                if (hitTest is TreeViewItem treeViewItem)
+                {
+                    clickedItem = treeViewItem;
+                    break;
+                }
+                hitTest = VisualTreeHelper.GetParent(hitTest);
+            }
+
+            if (clickedItem != null)
+            {
+                // 检查是否为一级菜单（直接在MenuTree下的项目）
+                bool isTopLevel = false;
+                
+                // 检查父容器是否是MenuTree本身
+                var parent = VisualTreeHelper.GetParent(clickedItem);
+                while (parent != null)
+                {
+                    if (parent == MenuTree)
+                    {
+                        isTopLevel = true;
+                        break;
+                    }
+                    if (parent is TreeViewItem)
+                    {
+                        // 如果找到了TreeViewItem父级，说明这不是顶级项
+                        break;
+                    }
+                    parent = VisualTreeHelper.GetParent(parent);
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[双击检测] 项目: {clickedItem.Header}, 是否顶级: {isTopLevel}");
+
+                // 如果是一级菜单，切换展开/收缩状态
+                if (isTopLevel)
+                {
+                    // 记录当前状态
+                    bool currentState = clickedItem.IsExpanded;
+                    System.Diagnostics.Debug.WriteLine($"[一级菜单双击] {clickedItem.Header} - 当前展开状态: {currentState}");
+                    
+                    // 切换状态
+                    clickedItem.IsExpanded = !currentState;
+                    
+                    System.Diagnostics.Debug.WriteLine($"[一级菜单双击] {clickedItem.Header} - 新展开状态: {clickedItem.IsExpanded}");
+                    
+                    e.Handled = true; // 阻止事件继续传播
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[二级菜单双击] 忽略处理");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[双击事件] 未找到TreeViewItem");
+            }
+        }
+
+        /// <summary>
         /// 在Tab中打开网址（使用CefSharp浏览器）
         /// </summary>
         /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
@@ -207,6 +322,14 @@ namespace BrowserTool
                 if (tab.Tag is TabInfo tabInfo && tabInfo.Url == url)
                 {
                     MainTabControl.SelectedItem = tab;
+                    
+                    // 重新加载页面
+                    if (tab.Content is ChromiumWebBrowser browser)
+                    {
+                        browser.Load(url);
+                        System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                    }
+                    
                     return tab;
                 }
             }
@@ -401,6 +524,25 @@ namespace BrowserTool
                 {
                     CefHelper.ShowDevTools(currentBrowser);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 测试环境按钮点击事件处理
+        /// </summary>
+        private void TestEnvButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 从配置文件读取测试环境URL
+            string testUrl = System.Configuration.ConfigurationManager.AppSettings["TestEnvironmentUrl"];
+            
+            if (!string.IsNullOrEmpty(testUrl))
+            {
+                // 直接打开测试环境标签页
+                OpenUrlInTab("测试环境", testUrl, true);
+            }
+            else
+            {
+                MessageBox.Show("测试环境URL未配置，请在App.config中设置TestEnvironmentUrl", "配置错误", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -906,7 +1048,10 @@ namespace BrowserTool
                 menuGroups = allGroups.Select(g => new MenuGroup
                 {
                     GroupName = g.Name,
-                    Items = g.Sites.Where(s => s.IsEnabled).Select(s => new MenuItemData
+                    IsDefaultExpanded = g.IsDefaultExpanded,
+                    Items = g.Sites.Where(s => s.IsEnabled)
+                                   .OrderBy(s => s.SortOrder)  // 确保按照排序顺序显示
+                                   .Select(s => new MenuItemData
                     {
                         Name = s.DisplayName,
                         Url = s.Url,
@@ -925,7 +1070,7 @@ namespace BrowserTool
                     // 添加新项
                     foreach (var group in menuGroups)
                     {
-                        var groupItem = new TreeViewItem { Header = group.GroupName, IsExpanded = true };
+                        var groupItem = new TreeViewItem { Header = group.GroupName, IsExpanded = group.IsDefaultExpanded };
                         foreach (var item in group.Items)
                         {
                             var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1004,130 +1149,6 @@ namespace BrowserTool
         {
             _mouseActivitySimulator.Stop(); // 确保在关闭窗口时停止鼠标活动模拟
             Close();
-        }
-
-        // 支持鼠标拖动窗口
-        protected override void OnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
-        {
-            base.OnMouseLeftButtonDown(e);
-            // 只在点击标题栏区域时允许拖动和双击最大化
-            if (e.GetPosition(this).Y <= 40)
-            {
-                if (e.ClickCount == 2)
-                {
-                    // 双击最大化/还原
-                    if (this.WindowState == WindowState.Maximized)
-                    {
-                        this.WindowState = WindowState.Normal;
-                    }
-                    else
-                    {
-                        this.WindowState = WindowState.Maximized;
-                        this.MaxHeight = SystemParameters.MaximizedPrimaryScreenHeight;
-                        this.MaxWidth = SystemParameters.MaximizedPrimaryScreenWidth;
-                    }
-                }
-                else
-                {
-                    this.DragMove();
-                }
-            }
-        }
-
-        protected override void OnSourceInitialized(EventArgs e)
-        {
-            base.OnSourceInitialized(e);
-            var hwnd = new WindowInteropHelper(this).Handle;
-            HwndSource.FromHwnd(hwnd).AddHook(WindowProc);
-        }
-
-        private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            const int WM_NCHITTEST = 0x0084;
-            const int HTLEFT = 10;
-            const int HTRIGHT = 11;
-            const int HTTOP = 12;
-            const int HTTOPLEFT = 13;
-            const int HTTOPRIGHT = 14;
-            const int HTBOTTOM = 15;
-            const int HTBOTTOMLEFT = 16;
-            const int HTBOTTOMRIGHT = 17;
-
-            if (msg == WM_NCHITTEST)
-            {
-                var mousePos = GetMousePosition(lParam);
-                var windowPos = this.PointToScreen(new System.Windows.Point(0, 0));
-                double width = this.ActualWidth;
-                double height = this.ActualHeight;
-                int edge = 8;
-
-                // 标题栏按钮区域（右上角120x40）
-                double btnAreaLeft = windowPos.X + width - 120;
-                double btnAreaTop = windowPos.Y;
-                double btnAreaRight = windowPos.X + width;
-                double btnAreaBottom = windowPos.Y + 40;
-                if (mousePos.X >= btnAreaLeft && mousePos.X <= btnAreaRight && mousePos.Y >= btnAreaTop && mousePos.Y <= btnAreaBottom)
-                {
-                    handled = false; // 让WPF处理按钮点击
-                    return IntPtr.Zero;
-                }
-
-                // 边缘判定
-                if (mousePos.Y >= windowPos.Y && mousePos.Y < windowPos.Y + edge)
-                {
-                    handled = true;
-                    if (mousePos.X >= windowPos.X && mousePos.X < windowPos.X + edge)
-                        return (IntPtr)HTTOPLEFT;
-                    if (mousePos.X < windowPos.X + width && mousePos.X >= windowPos.X + width - edge)
-                        return (IntPtr)HTTOPRIGHT;
-                    return (IntPtr)HTTOP;
-                }
-                if (mousePos.Y < windowPos.Y + height && mousePos.Y >= windowPos.Y + height - edge)
-                {
-                    handled = true;
-                    if (mousePos.X >= windowPos.X && mousePos.X < windowPos.X + edge)
-                        return (IntPtr)HTBOTTOMLEFT;
-                    if (mousePos.X < windowPos.X + width && mousePos.X >= windowPos.X + width - edge)
-                        return (IntPtr)HTBOTTOMRIGHT;
-                    return (IntPtr)HTBOTTOM;
-                }
-                if (mousePos.X >= windowPos.X && mousePos.X < windowPos.X + edge)
-                {
-                    handled = true;
-                    return (IntPtr)HTLEFT;
-                }
-                if (mousePos.X < windowPos.X + width && mousePos.X >= windowPos.X + width - edge)
-                {
-                    handled = true;
-                    return (IntPtr)HTRIGHT;
-                }
-                handled = false;
-                return IntPtr.Zero;
-            }
-            return IntPtr.Zero;
-        }
-
-        private System.Windows.Point GetMousePosition(IntPtr lParam)
-        {
-            int x = (short)((uint)lParam & 0xFFFF);
-            int y = (short)(((uint)lParam >> 16) & 0xFFFF);
-            return new System.Windows.Point(x, y);
-        }
-
-        private void CloseTabButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button button && button.Tag is TabItem tabItem)
-            {
-                // 如果标签页包含TabInfo，释放浏览器实例
-                if (tabItem.Tag is TabInfo tabInfo)
-                {
-                    Browser.BrowserInstanceManager.Instance.ReleaseBrowser(tabInfo.TabId);
-                }
-
-                MainTabControl.Items.Remove(tabItem);
-                // 清除MenuTree的选中状态
-                ClearTreeViewSelection();
-            }
         }
 
         private void btnSettings_Click(object sender, RoutedEventArgs e)
@@ -1289,5 +1310,132 @@ namespace BrowserTool
         }
         
 
+        /// <summary>
+        /// 窗口关闭事件处理 - 最小化到托盘而不是退出
+        /// </summary>
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            // 取消关闭操作，改为隐藏到托盘
+            e.Cancel = true;
+            this.Hide();
+            
+            // 可选：显示托盘提示
+            var trayIcon = (TaskbarIcon)Application.Current.Resources["TrayIcon"];
+            if (trayIcon != null)
+            {
+                trayIcon.ShowBalloonTip("Browser Tool", "程序已最小化到系统托盘", BalloonIcon.Info);
+            }
+        }
+
+        /// <summary>
+        /// 标题栏鼠标左键按下事件处理 - 支持拖拽和双击最大化/还原
+        /// </summary>
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                // 双击最大化/还原
+                if (WindowState == WindowState.Maximized)
+                {
+                    WindowState = WindowState.Normal;
+                }
+                else
+                {
+                    WindowState = WindowState.Maximized;
+                    this.MaxHeight = SystemParameters.MaximizedPrimaryScreenHeight;
+                    this.MaxWidth = SystemParameters.MaximizedPrimaryScreenWidth;
+                }
+                   
+            }
+            else if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                // 单击拖动
+                DragMove();
+            }
+        }
+        
+        /// <summary>
+        /// 主窗体大小改变事件处理
+        /// </summary>
+        private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // 延迟执行以确保布局完成
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    // 遍历所有标签页，刷新浏览器控件的大小
+                    foreach (TabItem tab in MainTabControl.Items)
+                    {
+                        if (tab.Content is ChromiumWebBrowser browser)
+                        {
+                            // 强制重新计算布局
+                            browser.InvalidateVisual();
+                            browser.UpdateLayout();
+                            
+                            // 如果浏览器已经加载完成，可以尝试调用JavaScript来调整页面
+                            if (!browser.IsLoading && browser.CanExecuteJavascriptInMainFrame)
+                            {
+                                browser.ExecuteScriptAsync("if(window.dispatchEvent) { window.dispatchEvent(new Event('resize')); }");
+                            }
+                        }
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"[窗口大小改变] 新尺寸: {e.NewSize.Width}x{e.NewSize.Height}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[窗口大小改变处理错误] {ex.Message}");
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        /// <summary>
+        /// 关闭标签页按钮点击事件
+        /// </summary>
+        private void CloseTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var button = sender as Button;
+                var tabItem = button?.Tag as TabItem;
+                
+                if (tabItem != null && MainTabControl.Items.Contains(tabItem))
+                {
+                    // 如果关闭的是当前选中的标签页，且还有其他标签页，则选择相邻的标签页
+                    if (MainTabControl.SelectedItem == tabItem && MainTabControl.Items.Count > 1)
+                    {
+                        var index = MainTabControl.Items.IndexOf(tabItem);
+                        if (index > 0)
+                        {
+                            MainTabControl.SelectedIndex = index - 1;
+                        }
+                        else if (index < MainTabControl.Items.Count - 1)
+                        {
+                            MainTabControl.SelectedIndex = index + 1;
+                        }
+                    }
+                    
+                    // 释放浏览器资源
+                    if (tabItem.Content is ChromiumWebBrowser browser)
+                    {
+                        browser.Dispose();
+                    }
+                    
+                    // 移除标签页
+                    MainTabControl.Items.Remove(tabItem);
+                    
+                    // 如果没有标签页了，可以考虑添加一个默认标签页或隐藏标签控件
+                    if (MainTabControl.Items.Count == 0)
+                    {
+                        // 可以在这里添加默认行为，比如打开首页
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[关闭标签页错误] {ex.Message}");
+            }
+        }
     }
 }

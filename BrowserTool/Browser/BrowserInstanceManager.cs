@@ -54,6 +54,15 @@ namespace BrowserTool.Browser
                     browser.MenuHandler = new CefMenuHandler();
                     browser.LifeSpanHandler = new CefLifeSpanHandler();
                     
+                    // 添加页面加载完成事件，注入深色滚动条样式
+                    browser.FrameLoadEnd += (sender, args) => {
+                        if (args.Frame.IsMain)
+                        {
+                            // 注入深色滚动条样式
+                            DarkThemeStyleInjector.InjectDarkThemeStyles(args.Frame);
+                        }
+                    };
+                    
                     instance = new BrowserInstance { Browser = browser };
                 }
                 

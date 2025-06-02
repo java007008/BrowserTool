@@ -150,15 +150,15 @@
         <!-- 工具栏 -->
         <Border Grid.Row="0" Background="White" CornerRadius="4" Padding="10" Margin="0,0,0,15">
             <StackPanel Orientation="Horizontal">
-                <Button x:Name="btnAddGroup" Content="➕ 添加分组" Click="btnAddGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                <Button x:Name="btnAddSite" Content="➕ 添加网站" Click="btnAddSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                <Button x:Name="btnEdit" Content="✏️ 编辑" Click="btnEdit_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                <Button x:Name="btnDelete" Content="🗑️ 删除" Click="btnDelete_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                <Button x:Name="btnMoveUp" Content="⬆️ 上移" Click="btnMoveUp_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                <Button x:Name="btnMoveDown" Content="⬇️ 下移" Click="btnMoveDown_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="10,0"/>
-                <Button x:Name="btnRefreshIcon" Content="🔄 刷新图标" Click="btnRefreshIcon_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnAddGroup" Content="➕ 新增分组" Click="btnAddGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnEditGroup" Content="✏️ 编辑分组" Click="btnEditGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnDeleteGroup" Content="🗑️ 删除分组" Click="btnDeleteGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnAddSite" Content="🌐 新增网站" Click="btnAddSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnEditSite" Content="📝 编辑网站" Click="btnEditSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnDeleteSite" Content="🗑️ 删除网站" Click="btnDeleteSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
                 <Button x:Name="btnCustomIcon" Content="🖼️ 自定义图标" Click="btnCustomIcon_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Separator Margin="10,0"/>
+                <Button x:Name="btnSetDefaultBrowser" Content="🌐 设为默认浏览器" Click="btnSetDefaultBrowser_Click" Style="{StaticResource FunctionButtonStyle}"/>
             </StackPanel>
         </Border>
 
@@ -225,41 +225,61 @@
 
             <!-- 右侧网站列表 -->
             <Border Grid.Column="1" Background="White" CornerRadius="4">
-                <DataGrid x:Name="dgSites" Margin="5" AutoGenerateColumns="False" 
-                          IsReadOnly="True" SelectionMode="Single">
-                    <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="图标" Width="40">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Image Source="{Binding Icon, Converter={StaticResource Base64ToImageConverter}}" Width="16" Height="16"/>
-                                        <Button Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}"
-                                                Click="btnPreviewIcon_Click" 
-                                                Tag="{Binding}"
-                                                Margin="-8,0,0,0"
-                                                Padding="0"
-                                                Width="16" Height="16"
-                                                Background="Transparent"
-                                                BorderThickness="0">
-                                            <Button.Template>
-                                                <ControlTemplate>
-                                                    <Border Background="Transparent">
-                                                        <TextBlock Text="👁" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </Grid>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="显示名称" Binding="{Binding DisplayName}" Width="150"/>
-                        <DataGridTextColumn Header="网址" Binding="{Binding Url}" Width="200"/>
-                        <DataGridTextColumn Header="描述" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="访问次数" Binding="{Binding AccessCount}" Width="80"/>
-                        <DataGridTextColumn Header="最后访问" Binding="{Binding LastAccessTime}" Width="150"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- 网站列表 -->
+                    <DataGrid x:Name="dgSites" Grid.Row="0" Margin="5" AutoGenerateColumns="False" 
+                              IsReadOnly="True" SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="图标" Width="40">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Image Source="{Binding Icon, Converter={StaticResource Base64ToImageConverter}}" Width="16" Height="16"/>
+                                            <Button Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}"
+                                                    Click="btnPreviewIcon_Click" 
+                                                    Tag="{Binding}"
+                                                    Margin="-8,0,0,0"
+                                                    Padding="0"
+                                                    Width="16" Height="16"
+                                                    Background="Transparent"
+                                                    BorderThickness="0">
+                                                <Button.Template>
+                                                    <ControlTemplate>
+                                                        <Border Background="Transparent">
+                                                            <TextBlock Text="👁" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="显示名称" Binding="{Binding DisplayName}" Width="150"/>
+                            <DataGridTextColumn Header="网址" Binding="{Binding Url}" Width="200"/>
+                            <DataGridTextColumn Header="描述" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="访问次数" Binding="{Binding AccessCount}" Width="80"/>
+                            <DataGridTextColumn Header="最后访问" Binding="{Binding LastAccessTime}" Width="150"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    
+                    <!-- 操作按钮区域 -->
+                    <Border Grid.Row="1" Background="#F8F9FA" Padding="10" BorderBrush="#E9ECEF" BorderThickness="0,1,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <Button x:Name="btnAdd" Content="➕ 添加" Click="btnAdd_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                            <Button x:Name="btnEdit" Content="✏️ 编辑" Click="btnEdit_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                            <Button x:Name="btnDelete" Content="🗑️ 删除" Click="btnDelete_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                            <Separator Margin="10,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"/>
+                            <Button x:Name="btnMoveUp" Content="⬆️ 上移" Click="btnMoveUp_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                            <Button x:Name="btnMoveDown" Content="⬇️ 下移" Click="btnMoveDown_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
         </Grid>
 
@@ -271,4 +291,4 @@
             </StackPanel>
         </Border>
     </Grid>
-</Window> 
+</Window>

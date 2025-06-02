@@ -21,11 +21,20 @@ namespace BrowserTool.Browser
         private const int CMD_GO_TO_URL = 26505;
         private const int CMD_GO_TO_URL_NEW_WINDOW = 26506;
         private const int CMD_REFRESH = 26507;
+        private const int CMD_OPEN_LINK_NEW_TAB = 26508;
 
         public void OnBeforeContextMenu(IWebBrowser browserControl, IBrowser browser, IFrame frame, IContextMenuParams parameters, IMenuModel model)
         {
             // 清除默认菜单
             model.Clear();
+            
+            // 如果右键点击的是链接，添加"在新标签页中打开"选项
+            if (!string.IsNullOrEmpty(parameters.LinkUrl))
+            {
+                model.AddItem((CefMenuCommand)CMD_OPEN_LINK_NEW_TAB, "在新标签页中打开");
+                model.AddSeparator();
+            }
+            
             model.AddItem((CefMenuCommand)CMD_VIEW_SOURCE, "查看源代码");
             model.AddItem((CefMenuCommand)CMD_COPY_URL, "复制网址");
             model.AddSeparator();
@@ -70,6 +79,22 @@ namespace BrowserTool.Browser
                         }
                     });
                 }
+                return true;
+            }
+            if ((int)commandId == CMD_OPEN_LINK_NEW_TAB)
+            {
+                // 在新标签页中打开链接
+                // 先保存LinkUrl，防止parameters对象被释放
+                string linkUrl = parameters.LinkUrl;
+                System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                    var mainWindow = System.Windows.Application.Current.MainWindow as MainWindow;
+                    if (mainWindow != null)
+                    {
+                        mainWindow.Dispatcher.BeginInvoke(new Action(() => {
+                            mainWindow.OpenUrlInTab("Loading...", linkUrl, false);
+                        }));
+                    }
+                });
                 return true;
             }
             if ((int)commandId == CMD_VIEW_SOURCE)

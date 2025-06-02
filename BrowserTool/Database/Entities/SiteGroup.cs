@@ -19,6 +19,11 @@ namespace BrowserTool.Database.Entities
 
         public bool IsEnabled { get; set; }
 
+        /// <summary>
+        /// 是否默认展开（用于控制一级菜单的默认展开状态）
+        /// </summary>
+        public bool IsDefaultExpanded { get; set; } = false;
+
         public DateTime CreateTime { get; set; }
 
         public DateTime UpdateTime { get; set; }

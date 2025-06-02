@@ -204,17 +204,21 @@ namespace BrowserTool.Database
                     var groupCount = context.SiteGroups.Count();
                     System.Diagnostics.Debug.WriteLine($"数据库中的分组总数: {groupCount}");
 
-                    // 获取所有分组
+                    // 先获取所有分组，不使用Include
                     var groups = context.SiteGroups
-                        .Include(g => g.Sites)
                         .OrderBy(g => g.SortOrder)
                         .ThenBy(g => g.Name)
                         .ToList();
 
-                    // 输出每个分组的信息
+                    // 手动加载每个分组的站点
                     foreach (var group in groups)
                     {
-                        System.Diagnostics.Debug.WriteLine($"分组: {group.Name}, ID: {group.Id}, 站点数: {group.Sites?.Count ?? 0}");
+                        group.Sites = context.SiteItems
+                            .Where(s => s.GroupId == group.Id)
+                            .OrderBy(s => s.SortOrder)
+                            .ToList();
+                        
+                        System.Diagnostics.Debug.WriteLine($"分组: {group.Name}, ID: {group.Id}, 站点数: {group.Sites?.Count ?? 0}, IsDefaultExpanded: {group.IsDefaultExpanded}");
                     }
 
                     return groups;

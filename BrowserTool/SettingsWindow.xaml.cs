@@ -219,7 +219,8 @@ namespace BrowserTool
                 {
                     Name = dialog.GroupName,
                     SortOrder = groups.Count,
-                    IsEnabled = true
+                    IsEnabled = true,
+                    IsDefaultExpanded = dialog.IsDefaultExpanded
                 };
 
                 SiteConfig.SaveGroup(newGroup);
@@ -266,6 +267,23 @@ namespace BrowserTool
                 // 触发设置保存事件
                 SettingsSaved?.Invoke(this, EventArgs.Empty);
             }
+        }
+
+        private void btnAdd_Click(object sender, RoutedEventArgs e)
+        {
+            btnAddSite_Click(sender, e);
+        }
+
+        private void btnEditSite_Click(object sender, RoutedEventArgs e)
+        {
+            // 编辑网站功能 - 可以调用现有的btnEdit_Click方法
+            btnEdit_Click(sender, e);
+        }
+
+        private void btnDeleteSite_Click(object sender, RoutedEventArgs e)
+        {
+            // 删除网站功能 - 可以调用现有的btnDelete_Click方法
+            btnDelete_Click(sender, e);
         }
 
         private void btnEdit_Click(object sender, RoutedEventArgs e)
@@ -569,58 +587,53 @@ namespace BrowserTool
         {
             if (tvGroups.SelectedItem is SiteGroupViewModel group)
             {
-                var dialog = new GroupEditDialog(group.Name);
-                if (dialog.ShowDialog() == true)
+                // 从数据库获取完整的分组信息
+                using (var context = new AppDbContext())
                 {
-                    try
+                    var dbGroup = context.SiteGroups.FirstOrDefault(g => g.Id == group.Id);
+                    if (dbGroup != null)
                     {
-                        // 记录当前组ID，用于后续重新选中
-                        int groupId = group.Id;
-                        string newName = dialog.GroupName;
-
-                        // 直接从数据库获取最新的组对象
-                        using (var context = new AppDbContext())
+                        var dialog = new GroupEditDialog(dbGroup.Name, dbGroup.IsDefaultExpanded);
+                        if (dialog.ShowDialog() == true)
                         {
-                            var dbGroup = context.SiteGroups.Find(groupId);
-                            if (dbGroup != null)
+                            try
                             {
-                                // 更新组名
-                                dbGroup.Name = newName;
-                                dbGroup.UpdateTime = DateTime.Now;
-                                context.SaveChanges();
+                                // 记录当前组ID，用于后续重新选中
+                                int groupId = group.Id;
+                                string newName = dialog.GroupName;
+                                bool newIsDefaultExpanded = dialog.IsDefaultExpanded;
+
+                                // 直接从数据库获取最新的组对象
+                                using (var updateContext = new AppDbContext())
+                                {
+                                    var groupToUpdate = updateContext.SiteGroups.FirstOrDefault(g => g.Id == groupId);
+                                    if (groupToUpdate != null)
+                                    {
+                                        groupToUpdate.Name = newName;
+                                        groupToUpdate.IsDefaultExpanded = newIsDefaultExpanded;
+                                        updateContext.SaveChanges();
+                                    }
+                                }
+
+                                // 更新本地数据
+                                group.Name = newName;
+                                allGroups.First(g => g.Id == groupId).Name = newName;
+                                allGroups.First(g => g.Id == groupId).IsDefaultExpanded = newIsDefaultExpanded;
+
+                                // 刷新界面
+                                RefreshGroups();
+
+                                // 直接刷新主窗口菜单
+                                RefreshMainWindowMenu();
+
+                                // 调试输出
+                                System.Diagnostics.Debug.WriteLine($"[btnEditGroup_Click] 刷新主窗口菜单已调用");
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show($"更新分组信息时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                             }
                         }
-
-                        // 强制刷新数据
-                        allGroups = SiteConfig.GetAllGroups(); // 从数据库重新加载
-                        RefreshGroups();
-                        RefreshSites(currentSearchText, currentSearchType);
-
-                        // 保持选中（刷新后延迟聚焦）
-                        var targetGroup = groups.FirstOrDefault(g => g.Id == groupId);
-                        if (targetGroup != null)
-                        {
-                            Dispatcher.BeginInvoke(new Action(() => {
-                                var item = tvGroups.ItemContainerGenerator.ContainerFromItem(targetGroup) as TreeViewItem;
-                                if (item != null)
-                                {
-                                    item.IsSelected = true;
-                                }
-                            }), System.Windows.Threading.DispatcherPriority.Background);
-                        }
-
-                        // 调试输出
-                        System.Diagnostics.Debug.WriteLine($"[btnEditGroup_Click] 准备刷新主窗口菜单");
-
-                        // 直接刷新主窗口菜单
-                        RefreshMainWindowMenu();
-
-                        // 调试输出
-                        System.Diagnostics.Debug.WriteLine($"[btnEditGroup_Click] 刷新主窗口菜单已调用");
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"更新分组名称时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             }
@@ -742,6 +755,49 @@ namespace BrowserTool
 
                 // 触发设置保存事件
                 SettingsSaved?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// 设为默认浏览器按钮点击事件
+        /// </summary>
+        private void btnSetDefaultBrowser_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 检查登录状态
+                if (!Utils.LoginManager.IsLoggedIn)
+                {
+                    MessageBox.Show("请先登录后再设置默认浏览器", "未登录", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // 检查当前是否已经是默认浏览器
+                if (DefaultBrowserManager.IsDefaultBrowser())
+                {
+                    MessageBox.Show("BrowserTool 已经是默认浏览器", "信息", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // 尝试设置为默认浏览器
+                var result = MessageBox.Show(
+                    "确定要将 BrowserTool 设置为默认浏览器吗？\n\n这将使所有网页链接默认使用 BrowserTool 打开。",
+                    "设置默认浏览器",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    if (DefaultBrowserManager.SetAsDefaultBrowser())
+                    {
+                        MessageBox.Show("默认浏览器设置操作已完成。\n\n请检查系统设置确认更改是否生效。", "设置完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"设置默认浏览器时发生错误：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Diagnostics.Debug.WriteLine($"[设置默认浏览器错误] {ex}");
             }
         }
 
