@@ -23,6 +23,54 @@ namespace BrowserTool.Database
         }
 
         /// <summary>
+        /// 解密网站敏感信息
+        /// </summary>
+        /// <param name="site">要解密的网站对象</param>
+        private static void DecryptSiteInfo(SiteItem site)
+        {
+            if (site == null) return;
+
+            if (!string.IsNullOrEmpty(site.Username))
+            {
+                site.Username = CryptoHelper.Decrypt(site.Username);
+            }
+            if (!string.IsNullOrEmpty(site.Password))
+            {
+                site.Password = CryptoHelper.Decrypt(site.Password);
+            }
+            if (!string.IsNullOrEmpty(site.CommonUsername))
+            {
+                site.CommonUsername = CryptoHelper.Decrypt(site.CommonUsername);
+            }
+            if (!string.IsNullOrEmpty(site.CommonPassword))
+            {
+                site.CommonPassword = CryptoHelper.Decrypt(site.CommonPassword);
+            }
+            if (!string.IsNullOrEmpty(site.GoogleSecret))
+            {
+                site.GoogleSecret = CryptoHelper.Decrypt(site.GoogleSecret);
+            }
+            if (!string.IsNullOrEmpty(site.Url))
+            {
+                site.Url = CryptoHelper.Decrypt(site.Url);
+            }
+        }
+
+        /// <summary>
+        /// 批量解密网站敏感信息
+        /// </summary>
+        /// <param name="sites">要解密的网站集合</param>
+        private static void DecryptSiteInfoBatch(ICollection<SiteItem> sites)
+        {
+            if (sites == null) return;
+
+            foreach (var site in sites)
+            {
+                DecryptSiteInfo(site);
+            }
+        }
+
+        /// <summary>
         /// 获取所有启用的分组
         /// </summary>
         /// <returns>启用的分组列表</returns>
@@ -47,11 +95,16 @@ namespace BrowserTool.Database
         {
             using (var context = new AppDbContext())
             {
-                return context.SiteItems
+                var sites = context.SiteItems
                     .Where(s => s.GroupId == groupId && s.IsEnabled)
                     .OrderBy(s => s.SortOrder)
                     .ThenBy(s => s.DisplayName)
                     .ToList();
+
+                // 解密敏感信息
+                DecryptSiteInfoBatch(sites);
+
+                return sites;
             }
         }
 
@@ -91,40 +144,64 @@ namespace BrowserTool.Database
         {
             using (var context = new AppDbContext())
             {
+                // 创建副本以避免修改原对象
+                var siteToSave = new SiteItem
+                {
+                    Id = site.Id,
+                    GroupId = site.GroupId,
+                    DisplayName = site.DisplayName,
+                    Username = site.Username,
+                    Password = site.Password,
+                    CommonUsername = site.CommonUsername,
+                    CommonPassword = site.CommonPassword,
+                    GoogleSecret = site.GoogleSecret,
+                    Url = site.Url,
+                    IsEnabled = site.IsEnabled,
+                    SortOrder = site.SortOrder,
+                    CreateTime = site.CreateTime,
+                    UpdateTime = site.UpdateTime,
+                    LastAccessTime = site.LastAccessTime,
+                    AccessCount = site.AccessCount
+                };
+
                 // 加密敏感信息
-                if (!string.IsNullOrEmpty(site.Username))
+                if (!string.IsNullOrEmpty(siteToSave.Username))
                 {
-                    site.Username = CryptoHelper.Encrypt(site.Username);
+                    siteToSave.Username = CryptoHelper.Encrypt(siteToSave.Username);
                 }
-                if (!string.IsNullOrEmpty(site.Password))
+                if (!string.IsNullOrEmpty(siteToSave.Password))
                 {
-                    site.Password = CryptoHelper.Encrypt(site.Password);
+                    siteToSave.Password = CryptoHelper.Encrypt(siteToSave.Password);
                 }
-                if (!string.IsNullOrEmpty(site.CommonUsername))
+                if (!string.IsNullOrEmpty(siteToSave.CommonUsername))
                 {
-                    site.CommonUsername = CryptoHelper.Encrypt(site.CommonUsername);
+                    siteToSave.CommonUsername = CryptoHelper.Encrypt(siteToSave.CommonUsername);
                 }
-                if (!string.IsNullOrEmpty(site.CommonPassword))
+                if (!string.IsNullOrEmpty(siteToSave.CommonPassword))
                 {
-                    site.CommonPassword = CryptoHelper.Encrypt(site.CommonPassword);
+                    siteToSave.CommonPassword = CryptoHelper.Encrypt(siteToSave.CommonPassword);
                 }
-                if (!string.IsNullOrEmpty(site.GoogleSecret))
+                if (!string.IsNullOrEmpty(siteToSave.GoogleSecret))
                 {
-                    site.GoogleSecret = CryptoHelper.Encrypt(site.GoogleSecret);
+                    siteToSave.GoogleSecret = CryptoHelper.Encrypt(siteToSave.GoogleSecret);
+                }
+                if (!string.IsNullOrEmpty(siteToSave.Url))
+                {
+                    siteToSave.Url = CryptoHelper.Encrypt(siteToSave.Url);
                 }
 
-                if (site.Id == 0)
+                if (siteToSave.Id == 0)
                 {
-                    site.CreateTime = DateTime.Now;
-                    site.UpdateTime = DateTime.Now;
-                    context.SiteItems.Add(site);
+                    siteToSave.CreateTime = DateTime.Now;
+                    siteToSave.UpdateTime = DateTime.Now;
+                    context.SiteItems.Add(siteToSave);
                 }
                 else
                 {
-                    var existingSite = context.SiteItems.Find(site.Id);
+                    var existingSite = context.SiteItems.Find(siteToSave.Id);
                     if (existingSite != null)
                     {
-                        context.Entry(existingSite).CurrentValues.SetValues(site);
+                        context.Entry(existingSite).CurrentValues.SetValues(siteToSave);
                         existingSite.UpdateTime = DateTime.Now;
                     }
                 }
@@ -199,7 +276,7 @@ namespace BrowserTool.Database
                 {
                     // 检查数据库连接
                     System.Diagnostics.Debug.WriteLine($"数据库路径: {DatabaseInitializer.GetDbPath()}");
-                    
+
                     // 检查是否有任何分组
                     var groupCount = context.SiteGroups.Count();
                     System.Diagnostics.Debug.WriteLine($"数据库中的分组总数: {groupCount}");
@@ -210,14 +287,20 @@ namespace BrowserTool.Database
                         .ThenBy(g => g.Name)
                         .ToList();
 
-                    // 手动加载每个分组的站点
+                    // 手动加载每个分组的站点并解密
                     foreach (var group in groups)
                     {
                         group.Sites = context.SiteItems
                             .Where(s => s.GroupId == group.Id)
                             .OrderBy(s => s.SortOrder)
                             .ToList();
-                        
+
+                        // 解密站点敏感信息
+                        if (group.Sites != null)
+                        {
+                            DecryptSiteInfoBatch(group.Sites);
+                        }
+
                         System.Diagnostics.Debug.WriteLine($"分组: {group.Name}, ID: {group.Id}, 站点数: {group.Sites?.Count ?? 0}, IsDefaultExpanded: {group.IsDefaultExpanded}");
                     }
 
@@ -239,10 +322,15 @@ namespace BrowserTool.Database
         {
             using (var context = new AppDbContext())
             {
-                return context.SiteItems
+                var sites = context.SiteItems
                     .OrderBy(s => s.SortOrder)
                     .ThenBy(s => s.DisplayName)
                     .ToList();
+
+                // 解密敏感信息
+                DecryptSiteInfoBatch(sites);
+
+                return sites;
             }
         }
 
@@ -290,7 +378,26 @@ namespace BrowserTool.Database
         {
             using (var context = new AppDbContext())
             {
-                context.SiteItems.Add(site);
+                // 创建副本并加密敏感信息
+                var siteToAdd = new SiteItem
+                {
+                    GroupId = site.GroupId,
+                    DisplayName = site.DisplayName,
+                    Username = !string.IsNullOrEmpty(site.Username) ? CryptoHelper.Encrypt(site.Username) : site.Username,
+                    Password = !string.IsNullOrEmpty(site.Password) ? CryptoHelper.Encrypt(site.Password) : site.Password,
+                    CommonUsername = !string.IsNullOrEmpty(site.CommonUsername) ? CryptoHelper.Encrypt(site.CommonUsername) : site.CommonUsername,
+                    CommonPassword = !string.IsNullOrEmpty(site.CommonPassword) ? CryptoHelper.Encrypt(site.CommonPassword) : site.CommonPassword,
+                    GoogleSecret = !string.IsNullOrEmpty(site.GoogleSecret) ? CryptoHelper.Encrypt(site.GoogleSecret) : site.GoogleSecret,
+                    Url = !string.IsNullOrEmpty(site.Url) ? CryptoHelper.Encrypt(site.Url) : site.Url,
+                    IsEnabled = site.IsEnabled,
+                    SortOrder = site.SortOrder,
+                    CreateTime = DateTime.Now,
+                    UpdateTime = DateTime.Now,
+                    LastAccessTime = site.LastAccessTime,
+                    AccessCount = site.AccessCount
+                };
+
+                context.SiteItems.Add(siteToAdd);
                 context.SaveChanges();
                 OnDataChanged(); // 触发数据变更事件
             }
@@ -304,10 +411,30 @@ namespace BrowserTool.Database
         {
             using (var context = new AppDbContext())
             {
-                context.SiteItems.Update(site);
-                context.SaveChanges();
-                OnDataChanged(); // 触发数据变更事件
+                var existingSite = context.SiteItems.Find(site.Id);
+                if (existingSite != null)
+                {
+                    // 更新非敏感字段
+                    existingSite.GroupId = site.GroupId;
+                    existingSite.DisplayName = site.DisplayName;
+                    existingSite.IsEnabled = site.IsEnabled;
+                    existingSite.SortOrder = site.SortOrder;
+                    existingSite.UpdateTime = DateTime.Now;
+                    existingSite.LastAccessTime = site.LastAccessTime;
+                    existingSite.AccessCount = site.AccessCount;
+
+                    // 加密并更新敏感字段
+                    existingSite.Username = !string.IsNullOrEmpty(site.Username) ? CryptoHelper.Encrypt(site.Username) : site.Username;
+                    existingSite.Password = !string.IsNullOrEmpty(site.Password) ? CryptoHelper.Encrypt(site.Password) : site.Password;
+                    existingSite.CommonUsername = !string.IsNullOrEmpty(site.CommonUsername) ? CryptoHelper.Encrypt(site.CommonUsername) : site.CommonUsername;
+                    existingSite.CommonPassword = !string.IsNullOrEmpty(site.CommonPassword) ? CryptoHelper.Encrypt(site.CommonPassword) : site.CommonPassword;
+                    existingSite.GoogleSecret = !string.IsNullOrEmpty(site.GoogleSecret) ? CryptoHelper.Encrypt(site.GoogleSecret) : site.GoogleSecret;
+                    existingSite.Url = !string.IsNullOrEmpty(site.Url) ? CryptoHelper.Encrypt(site.Url) : site.Url;
+
+                    context.SaveChanges();
+                    OnDataChanged(); // 触发数据变更事件
+                }
             }
         }
     }
-} 
+}

@@ -11,9 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Resources\app.ico" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Resources\app.ico" />
+    <None Remove="Resources\default_icon.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,8 +32,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Resources\app.ico">
+    <Resource Include="Resources\app.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\default_icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 </Project>
