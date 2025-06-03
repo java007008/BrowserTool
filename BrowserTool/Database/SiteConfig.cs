@@ -54,6 +54,10 @@ namespace BrowserTool.Database
             {
                 site.Url = CryptoHelper.Decrypt(site.Url);
             }
+            if (!string.IsNullOrEmpty(site.DisplayName))
+            {
+                site.DisplayName = CryptoHelper.Decrypt(site.DisplayName);
+            }
         }
 
         /// <summary>
@@ -189,6 +193,10 @@ namespace BrowserTool.Database
                 if (!string.IsNullOrEmpty(siteToSave.Url))
                 {
                     siteToSave.Url = CryptoHelper.Encrypt(siteToSave.Url);
+                }
+                if (!string.IsNullOrEmpty(siteToSave.DisplayName))
+                {
+                    siteToSave.DisplayName = CryptoHelper.Encrypt(siteToSave.DisplayName);
                 }
 
                 if (siteToSave.Id == 0)
@@ -383,7 +391,7 @@ namespace BrowserTool.Database
                 var siteToAdd = new SiteItem
                 {
                     GroupId = site.GroupId,
-                    DisplayName = site.DisplayName,
+                    DisplayName = !string.IsNullOrEmpty(site.DisplayName) ? CryptoHelper.Encrypt(site.DisplayName) : site.DisplayName,
                     Username = !string.IsNullOrEmpty(site.Username) ? CryptoHelper.Encrypt(site.Username) : site.Username,
                     Password = !string.IsNullOrEmpty(site.Password) ? CryptoHelper.Encrypt(site.Password) : site.Password,
                     CommonUsername = !string.IsNullOrEmpty(site.CommonUsername) ? CryptoHelper.Encrypt(site.CommonUsername) : site.CommonUsername,
@@ -417,7 +425,7 @@ namespace BrowserTool.Database
                 {
                     // 更新非敏感字段
                     existingSite.GroupId = site.GroupId;
-                    existingSite.DisplayName = site.DisplayName;
+                    //existingSite.DisplayName = site.DisplayName;
                     existingSite.IsEnabled = site.IsEnabled;
                     existingSite.SortOrder = site.SortOrder;
                     existingSite.UpdateTime = DateTime.Now;
@@ -431,6 +439,7 @@ namespace BrowserTool.Database
                     existingSite.CommonPassword = !string.IsNullOrEmpty(site.CommonPassword) ? CryptoHelper.Encrypt(site.CommonPassword) : site.CommonPassword;
                     existingSite.GoogleSecret = !string.IsNullOrEmpty(site.GoogleSecret) ? CryptoHelper.Encrypt(site.GoogleSecret) : site.GoogleSecret;
                     existingSite.Url = !string.IsNullOrEmpty(site.Url) ? CryptoHelper.Encrypt(site.Url) : site.Url;
+                    existingSite.DisplayName = !string.IsNullOrEmpty(site.DisplayName) ? CryptoHelper.Encrypt(site.DisplayName) : site.DisplayName;
 
                     context.SaveChanges();
                     OnDataChanged(); // 触发数据变更事件
