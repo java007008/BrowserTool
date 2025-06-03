@@ -108,16 +108,17 @@ namespace BrowserTool
                 // 托盘图标初始化
                 var trayIcon = (TaskbarIcon)Current.Resources["TrayIcon"];
                 // 使用项目中的 .ico 文件作为托盘图标
-                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "app.ico");
-                if (File.Exists(iconPath))
-                {
-                    trayIcon.Icon = new System.Drawing.Icon(iconPath);
-                }
-                else
-                {
-                    // 如果找不到图标文件，则使用动态创建的图标作为备选
-                    trayIcon.Icon = CreateDynamicIcon();
-                }
+                //string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "app.ico");
+                trayIcon.Icon = new Icon(Application.GetResourceStream(new Uri("pack://application:,,,/Resources/app.ico")).Stream);
+                //if (File.Exists(iconPath))
+                //{
+                //    trayIcon.Icon = new System.Drawing.Icon(iconPath);
+                //}
+                //else
+                //{
+                //    // 如果找不到图标文件，则使用动态创建的图标作为备选
+                //    trayIcon.Icon = CreateDynamicIcon();
+                //}
                 trayIcon.TrayMouseDoubleClick += TrayIcon_TrayMouseDoubleClick;
 
                 // 创建主窗口
