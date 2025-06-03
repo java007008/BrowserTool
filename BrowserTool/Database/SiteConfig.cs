@@ -161,6 +161,7 @@ namespace BrowserTool.Database
                     CreateTime = site.CreateTime,
                     UpdateTime = site.UpdateTime,
                     LastAccessTime = site.LastAccessTime,
+                    Icon = site.Icon,
                     AccessCount = site.AccessCount
                 };
 

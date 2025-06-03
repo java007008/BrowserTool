@@ -124,21 +124,56 @@ namespace BrowserTool
             }
         }
 
-        private void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
+        private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            LoadData(); // 只在Loaded事件中调用
+            System.Diagnostics.Debug.WriteLine("[SettingsWindow_Loaded] 窗口加载事件开始");
+            try
+            {
+                // 显示加载指示器
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow_Loaded] 准备显示Loading");
+                ShowLoading();
+                
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow_Loaded] 开始异步加载数据");
+                await LoadDataAsync(); // 异步加载数据
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow_Loaded] 异步加载数据完成");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SettingsWindow_Loaded] 加载数据时出错：{ex.Message}");
+                MessageBox.Show($"加载数据时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // 隐藏加载指示器
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow_Loaded] 准备隐藏Loading");
+                HideLoading();
+                System.Diagnostics.Debug.WriteLine("[SettingsWindow_Loaded] 窗口加载事件完成");
+            }
         }
 
-        private void LoadData()
+        private async Task LoadDataAsync()
         {
-            System.Diagnostics.Debug.WriteLine($"[LoadData] dgSites is null? {dgSites == null}");
-            // 初始化数据库
-            SiteConfig.InitializeDatabase();
-
-            allGroups = SiteConfig.GetAllGroups();
-            allSites = SiteConfig.GetAllSites() ?? new List<SiteItem>();
+            System.Diagnostics.Debug.WriteLine($"[LoadDataAsync] 开始加载数据");
+            System.Diagnostics.Debug.WriteLine($"[LoadDataAsync] dgSites is null? {dgSites == null}");
+            
+            // 在后台线程执行数据库操作
+            await Task.Run(() =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[LoadDataAsync] 在后台线程执行数据库操作");
+                // 初始化数据库
+                SiteConfig.InitializeDatabase();
+                
+                // 加载数据
+                allGroups = SiteConfig.GetAllGroups();
+                allSites = SiteConfig.GetAllSites() ?? new List<SiteItem>();
+                System.Diagnostics.Debug.WriteLine($"[LoadDataAsync] 数据库操作完成，加载了 {allGroups?.Count ?? 0} 个分组，{allSites?.Count ?? 0} 个站点");
+            });
+            
+            System.Diagnostics.Debug.WriteLine($"[LoadDataAsync] 开始刷新UI");
+            // 在UI线程更新界面
             RefreshGroups();
             RefreshSites();
+            System.Diagnostics.Debug.WriteLine($"[LoadDataAsync] UI刷新完成");
         }
 
         private void RefreshGroups()
@@ -414,12 +449,17 @@ namespace BrowserTool
             {
                 try
                 {
+                    ShowLoading();
                     await DataPort.ImportData(dialog.FileName);
-                    LoadData();
+                    await LoadDataAsync();
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"导入数据时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                finally
+                {
+                    HideLoading();
                 }
             }
         }
@@ -799,6 +839,24 @@ namespace BrowserTool
                 MessageBox.Show($"设置默认浏览器时发生错误：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 System.Diagnostics.Debug.WriteLine($"[设置默认浏览器错误] {ex}");
             }
+        }
+
+        /// <summary>
+        /// 显示加载指示器
+        /// </summary>
+        private void ShowLoading()
+        {
+            System.Diagnostics.Debug.WriteLine("[SettingsWindow] 显示Loading");
+            LoadingControl.IsLoading = true;
+        }
+
+        /// <summary>
+        /// 隐藏加载指示器
+        /// </summary>
+        private void HideLoading()
+        {
+            System.Diagnostics.Debug.WriteLine("[SettingsWindow] 隐藏Loading");
+            LoadingControl.IsLoading = false;
         }
 
         public class SiteGroupViewModel

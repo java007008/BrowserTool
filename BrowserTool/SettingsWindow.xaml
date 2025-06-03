@@ -1,7 +1,12 @@
 <Window x:Class="BrowserTool.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:BrowserTool"
         xmlns:utils="clr-namespace:BrowserTool.Utils"
+        xmlns:controls="clr-namespace:BrowserTool.Controls"
+        mc:Ignorable="d"
         Title="网站配置" Height="600" Width="1000"
         WindowStartupLocation="CenterScreen"
         Background="#F5F5F5"
@@ -156,6 +161,7 @@
                 <Button x:Name="btnAddSite" Content="🌐 新增网站" Click="btnAddSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
                 <Button x:Name="btnEditSite" Content="📝 编辑网站" Click="btnEditSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
                 <Button x:Name="btnDeleteSite" Content="🗑️ 删除网站" Click="btnDeleteSite_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                <Button x:Name="btnRefreshIcon" Content="🔄 刷新图标" Click="btnRefreshIcon_Click" Style="{StaticResource FunctionButtonStyle}"/>
                 <Button x:Name="btnCustomIcon" Content="🖼️ 自定义图标" Click="btnCustomIcon_Click" Style="{StaticResource FunctionButtonStyle}"/>
                 <Separator Margin="10,0"/>
                 <Button x:Name="btnSetDefaultBrowser" Content="🌐 设为默认浏览器" Click="btnSetDefaultBrowser_Click" Style="{StaticResource FunctionButtonStyle}"/>
@@ -202,9 +208,9 @@
             <Border Grid.Column="0" Background="White" CornerRadius="4" Margin="0,0,10,0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,5">
-                        <Button x:Name="btnAddGroupLeft" Content="➕ 添加分组" Click="btnAddGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                        <!--<Button x:Name="btnAddGroupLeft" Content="➕ 添加分组" Click="btnAddGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
                         <Button x:Name="btnEditGroupLeft" Content="✏️ 编辑分组" Click="btnEditGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                        <Button x:Name="btnDeleteGroupLeft" Content="🗑️ 删除分组" Click="btnDeleteGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                        <Button x:Name="btnDeleteGroupLeft" Content="🗑️ 删除分组" Click="btnDeleteGroup_Click" Style="{StaticResource FunctionButtonStyle}"/>-->
                         <Button x:Name="btnMoveGroupUpLeft" Content="⬆️ 上移" Click="btnMoveGroupUp_Click" Style="{StaticResource FunctionButtonStyle}"/>
                         <Button x:Name="btnMoveGroupDownLeft" Content="⬇️ 下移" Click="btnMoveGroupDown_Click" Style="{StaticResource FunctionButtonStyle}"/>
                     </StackPanel>
@@ -227,12 +233,24 @@
             <Border Grid.Column="1" Background="White" CornerRadius="4">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
+
+                    <!-- 操作按钮区域 -->
+                    <Border Grid.Row="0" Background="#F8F9FA" Padding="10" BorderBrush="#E9ECEF" BorderThickness="0,1,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <!--<Button x:Name="btnAdd" Content="➕ 添加" Click="btnAdd_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                            <Button x:Name="btnEdit" Content="✏️ 编辑" Click="btnEdit_Click" Style="{StaticResource FunctionButtonStyle}"/>-->
+                            <!--<Button x:Name="btnDelete" Content="🗑️ 删除" Click="btnDelete_Click" Style="{StaticResource FunctionButtonStyle}"/>-->
+                            <!--<Separator Margin="10,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"/>-->
+                            <Button x:Name="btnMoveUp" Content="⬆️ 上移" Click="btnMoveUp_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                            <Button x:Name="btnMoveDown" Content="⬇️ 下移" Click="btnMoveDown_Click" Style="{StaticResource FunctionButtonStyle}"/>
+                        </StackPanel>
+                    </Border>
                     
                     <!-- 网站列表 -->
-                    <DataGrid x:Name="dgSites" Grid.Row="0" Margin="5" AutoGenerateColumns="False" 
+                    <DataGrid x:Name="dgSites" Grid.Row="1" Margin="5" AutoGenerateColumns="False" 
                               IsReadOnly="True" SelectionMode="Single">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="图标" Width="40">
@@ -268,17 +286,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     
-                    <!-- 操作按钮区域 -->
-                    <Border Grid.Row="1" Background="#F8F9FA" Padding="10" BorderBrush="#E9ECEF" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <Button x:Name="btnAdd" Content="➕ 添加" Click="btnAdd_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                            <Button x:Name="btnEdit" Content="✏️ 编辑" Click="btnEdit_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                            <Button x:Name="btnDelete" Content="🗑️ 删除" Click="btnDelete_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                            <Separator Margin="10,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"/>
-                            <Button x:Name="btnMoveUp" Content="⬆️ 上移" Click="btnMoveUp_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                            <Button x:Name="btnMoveDown" Content="⬇️ 下移" Click="btnMoveDown_Click" Style="{StaticResource FunctionButtonStyle}"/>
-                        </StackPanel>
-                    </Border>
+                   
                 </Grid>
             </Border>
         </Grid>
@@ -290,5 +298,10 @@
                 <Button x:Name="btnCancel" Content="❌ 取消" Click="btnCancel_Click" Style="{StaticResource ActionButtonStyle}"/>
             </StackPanel>
         </Border>
+        
+        <!-- 使用浏览器原有的LoadingControl，覆盖整个窗口 -->
+        <controls:LoadingControl x:Name="LoadingControl" IsLoading="False" 
+                                Grid.Row="0" Grid.RowSpan="4" 
+                                Panel.ZIndex="1000"/>
     </Grid>
 </Window>

@@ -86,8 +86,9 @@ namespace BrowserTool
                 this.SourceInitialized += MainWindow_SourceInitialized;
                 _mouseActivitySimulator = new MouseActivitySimulator();
                 _mouseActivitySimulator.Start(); // 程序启动时自动启动鼠标活动模拟
-                LoadMenuGroupsFromDb();
+
                 InitMenuTree();
+
                 _tabManager = new BrowserTabManager(MainTabControl, this);
                 this.KeyDown += MainWindow_KeyDown; // 监听F12
                 MainTabControl.SelectionChanged += MainTabControl_SelectionChanged; // 监听标签页切换
@@ -100,6 +101,9 @@ namespace BrowserTool
 
                 // 添加Windows消息处理
                 this.SourceInitialized += MainWindow_SourceInitialized;
+
+                // 订阅登录状态变化事件
+                LoginManager.OnLoginStatusChanged += OnLoginStatusChanged;
             }
             catch (Exception ex)
             {
@@ -1436,6 +1440,24 @@ namespace BrowserTool
             {
                 System.Diagnostics.Debug.WriteLine($"[关闭标签页错误] {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 登录状态变化事件处理
+        /// </summary>
+        /// <param name="isLoggedIn">登录状态，true表示已登录，false表示未登录</param>
+        private void OnLoginStatusChanged(bool isLoggedIn)
+        {
+            // 在UI线程中执行
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (isLoggedIn)
+                {
+                    // 登录成功后刷新菜单
+                    RefreshMenuFromSettings();
+                }
+               
+            }));
         }
     }
 }
