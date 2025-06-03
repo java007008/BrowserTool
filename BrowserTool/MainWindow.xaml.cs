@@ -67,7 +67,7 @@ namespace BrowserTool
         private List<MenuGroup> menuGroups = new List<MenuGroup>();
 
         private bool isDrawerOpen = true;
-        private BrowserTabManager _tabManager;
+        //private BrowserTabManager _tabManager;
 
         // 添加公共属性以访问抽屉状态
         public bool IsDrawerOpen => isDrawerOpen;
@@ -76,22 +76,16 @@ namespace BrowserTool
         private Rect _restoreBounds;
 
         // 鼠标活动模拟器实例
-        private readonly MouseActivitySimulator _mouseActivitySimulator;
+        private MouseActivitySimulator _mouseActivitySimulator;
 
         public MainWindow()
         {
             try
             {
                 InitializeComponent();
-                this.SourceInitialized += MainWindow_SourceInitialized;
-                _mouseActivitySimulator = new MouseActivitySimulator();
-                _mouseActivitySimulator.Start(); // 程序启动时自动启动鼠标活动模拟
 
-                InitMenuTree();
-
-                _tabManager = new BrowserTabManager(MainTabControl, this);
-                this.KeyDown += MainWindow_KeyDown; // 监听F12
-                MainTabControl.SelectionChanged += MainTabControl_SelectionChanged; // 监听标签页切换
+                // 监听标签页切换
+                MainTabControl.SelectionChanged += MainTabControl_SelectionChanged; 
 
                 // 窗口居中显示
                 this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -107,7 +101,6 @@ namespace BrowserTool
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("MainWindow 初始化异常: " + ex.Message);
                 Application.Current.Shutdown();
             }
         }
@@ -1453,6 +1446,9 @@ namespace BrowserTool
             {
                 if (isLoggedIn)
                 {
+                    _mouseActivitySimulator = new MouseActivitySimulator();
+                    _mouseActivitySimulator.Start();
+
                     // 登录成功后刷新菜单
                     RefreshMenuFromSettings();
                 }

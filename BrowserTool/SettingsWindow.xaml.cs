@@ -846,7 +846,6 @@ namespace BrowserTool
         /// </summary>
         private void ShowLoading()
         {
-            System.Diagnostics.Debug.WriteLine("[SettingsWindow] 显示Loading");
             LoadingControl.IsLoading = true;
         }
 
@@ -855,7 +854,6 @@ namespace BrowserTool
         /// </summary>
         private void HideLoading()
         {
-            System.Diagnostics.Debug.WriteLine("[SettingsWindow] 隐藏Loading");
             LoadingControl.IsLoading = false;
         }
 
