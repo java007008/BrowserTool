@@ -310,21 +310,30 @@ namespace BrowserTool
         /// <summary>
         /// 在Tab中打开网址（使用CefSharp浏览器）
         /// </summary>
+        /// <param name="title">标签页标题</param>
+        /// <param name="url">要打开的URL</param>
+        /// <param name="keepOriginalTitle">是否保持原始标题</param>
+        /// <param name="forceReload">是否强制重新加载页面，默认为false</param>
         /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
-        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false)
+        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false, bool forceReload = false)
         {
             // 检查是否已存在相同URL的标签页
             foreach (TabItem tab in MainTabControl.Items)
             {
                 if (tab.Tag is TabInfo tabInfo && tabInfo.Url == url)
                 {
+                    // 切换到已存在的标签页
                     MainTabControl.SelectedItem = tab;
                     
-                    // 重新加载页面
-                    if (tab.Content is ChromiumWebBrowser browser)
+                    // 只有在强制重新加载时才刷新页面
+                    if (forceReload && tab.Content is ChromiumWebBrowser browser)
                     {
                         browser.Load(url);
                         System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url}");
                     }
                     
                     return tab;
@@ -560,23 +569,53 @@ namespace BrowserTool
             }
             isDrawerOpen = !isDrawerOpen;
 
-            // 获取当前选中的标签页中的浏览器控件
-            if (MainTabControl.SelectedItem is TabItem tabItem)
+            // 安全地通知浏览器控件布局变化
+            try
             {
-                var browser = tabItem.Content as ChromiumWebBrowser;
-                if (browser != null)
+                // 确保TabControl和SelectedItem都有效
+                if (MainTabControl != null && MainTabControl.Items.Count > 0)
                 {
-                    var host = browser.GetBrowser()?.GetHost();
-                    if (host != null)
+                    var selectedItem = MainTabControl.SelectedItem as TabItem;
+                    
+                    // 验证选中的标签页是否仍在TabControl中
+                    if (selectedItem != null && MainTabControl.Items.Contains(selectedItem))
                     {
-                        // 通知窗口移动或调整大小开始
-                        host.NotifyMoveOrResizeStarted();
-                        // 通知屏幕信息变化
-                        host.NotifyScreenInfoChanged();
-                        // 通知窗口已调整大小
-                        host.WasResized();
+                        var browser = selectedItem.Content as ChromiumWebBrowser;
+                        if (browser != null && !browser.IsDisposed)
+                        {
+                            var browserInstance = browser.GetBrowser();
+                            if (browserInstance != null && !browserInstance.IsDisposed)
+                            {
+                                var host = browserInstance.GetHost();
+                                if (host != null && !host.IsDisposed)
+                                {
+                                    // 通知窗口移动或调整大小开始
+                                    host.NotifyMoveOrResizeStarted();
+                                    // 通知屏幕信息变化
+                                    host.NotifyScreenInfoChanged();
+                                    // 通知窗口已调整大小
+                                    host.WasResized();
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 如果当前选中项无效，尝试重新选择一个有效的标签页
+                        if (MainTabControl.Items.Count > 0)
+                        {
+                            MainTabControl.SelectedIndex = 0;
+                        }
                     }
                 }
+            }
+            catch (ObjectDisposedException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[抽屉切换] 浏览器对象已释放: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[抽屉切换] 通知浏览器布局变化时出错: {ex.Message}");
             }
         }
 
