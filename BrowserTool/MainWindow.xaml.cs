@@ -42,6 +42,18 @@ namespace BrowserTool
     {
         public string Url { get; set; }
         public string TabId { get; set; }
+        /// <summary>
+        /// 原始URL，用于标识tab来源的菜单项
+        /// </summary>
+        public string OriginalUrl { get; set; }
+        /// <summary>
+        /// 菜单项ID，用于唯一标识来源的二级菜单
+        /// </summary>
+        public int? MenuItemId { get; set; }
+        /// <summary>
+        /// 菜单项标题，用于显示和调试
+        /// </summary>
+        public string MenuItemTitle { get; set; }
     }
     
     /// <summary>
@@ -58,6 +70,7 @@ namespace BrowserTool
         }
         public class MenuItemData
         {
+            public int Id { get; set; }  // 菜单项的数据库ID
             public string Name { get; set; }
             public string Url { get; set; }
             public string Icon { get; set; }
@@ -226,12 +239,12 @@ namespace BrowserTool
                     string combinedTitle = $"{parentName}-{data.Name}";
                     
                     // 打开标签页，使用组合后的标题
-                    OpenUrlInTab(combinedTitle, data.Url, true);
+                    OpenUrlInTab(combinedTitle, data.Url, true, false, data.Id, data.Name);
                 }
                 else
                 {
                     // 如果没有找到父级菜单项，则使用原始标题
-                    OpenUrlInTab(data.Name, data.Url, true);
+                    OpenUrlInTab(data.Name, data.Url, true, false, data.Id, data.Name);
                 }
             }
         }
@@ -314,29 +327,59 @@ namespace BrowserTool
         /// <param name="url">要打开的URL</param>
         /// <param name="keepOriginalTitle">是否保持原始标题</param>
         /// <param name="forceReload">是否强制重新加载页面，默认为false</param>
+        /// <param name="menuItemId">菜单项ID，用于标识来源菜单</param>
+        /// <param name="menuItemTitle">菜单项标题</param>
         /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
-        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false, bool forceReload = false)
+        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false, bool forceReload = false, int menuItemId = 0, string menuItemTitle = null)
         {
-            // 检查是否已存在相同URL的标签页
-            foreach (TabItem tab in MainTabControl.Items)
+            // 如果有菜单项ID，检查是否已存在来自相同菜单项的标签页
+            if (menuItemId > 0)
             {
-                if (tab.Tag is TabInfo tabInfo && tabInfo.Url == url)
+                foreach (TabItem tab in MainTabControl.Items)
                 {
-                    // 切换到已存在的标签页
-                    MainTabControl.SelectedItem = tab;
-                    
-                    // 只有在强制重新加载时才刷新页面
-                    if (forceReload && tab.Content is ChromiumWebBrowser browser)
+                    if (tab.Tag is TabInfo tabInfo && tabInfo.MenuItemId == menuItemId)
                     {
-                        browser.Load(url);
-                        System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                        // 切换到已存在的标签页
+                        MainTabControl.SelectedItem = tab;
+                        
+                        // 只有在强制重新加载时才刷新页面
+                        if (forceReload && tab.Content is ChromiumWebBrowser browser)
+                        {
+                            browser.Load(url);
+                            System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url} (菜单ID: {menuItemId})");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url} (菜单ID: {menuItemId})");
+                        }
+                        
+                        return tab;
                     }
-                    else
+                }
+            }
+            else
+            {
+                // 如果没有菜单项ID，则使用原来的URL匹配逻辑（用于向后兼容）
+                foreach (TabItem tab in MainTabControl.Items)
+                {
+                    if (tab.Tag is TabInfo tabInfo && tabInfo.OriginalUrl == url)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url}");
+                        // 切换到已存在的标签页
+                        MainTabControl.SelectedItem = tab;
+                        
+                        // 只有在强制重新加载时才刷新页面
+                        if (forceReload && tab.Content is ChromiumWebBrowser browser)
+                        {
+                            browser.Load(url);
+                            System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url}");
+                        }
+                        
+                        return tab;
                     }
-                    
-                    return tab;
                 }
             }
             
@@ -430,7 +473,10 @@ namespace BrowserTool
             var newTabInfo = new TabInfo
             {
                 Url = url,
-                TabId = tabId
+                TabId = tabId,
+                OriginalUrl = url,
+                MenuItemId = menuItemId,
+                MenuItemTitle = menuItemTitle
             };
             
             // 创建标签页并添加到TabControl
@@ -1089,6 +1135,7 @@ namespace BrowserTool
                                    .OrderBy(s => s.SortOrder)  // 确保按照排序顺序显示
                                    .Select(s => new MenuItemData
                     {
+                        Id = s.Id,  // 设置Id值
                         Name = s.DisplayName,
                         Url = s.Url,
                         Icon = s.Icon
