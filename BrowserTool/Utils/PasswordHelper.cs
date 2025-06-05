@@ -7,7 +7,7 @@ namespace BrowserTool.Utils
 {
     public static class PasswordHelper
     {
-        private static readonly string PasswordFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_pwd.dat");
+        private static readonly string PasswordFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup.dat");
         private static readonly string Salt = "BrowserToolSalt2024";
         public static bool VerifyOrSetStartupPassword(string input)
         {
