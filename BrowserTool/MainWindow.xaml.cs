@@ -332,63 +332,280 @@ namespace BrowserTool
         /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
         public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false, bool forceReload = false, int menuItemId = 0, string menuItemTitle = null)
         {
-            // 如果有菜单项ID，检查是否已存在来自相同菜单项的标签页
-            if (menuItemId > 0)
+            try
             {
-                foreach (TabItem tab in MainTabControl.Items)
+                // 参数验证
+                if (string.IsNullOrWhiteSpace(url))
                 {
-                    if (tab.Tag is TabInfo tabInfo && tabInfo.MenuItemId == menuItemId)
+                    System.Diagnostics.Debug.WriteLine("[OpenUrlInTab] URL为空，无法打开标签页");
+                    return null;
+                }
+                
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    title = "新标签页";
+                }
+                
+                // URL标准化
+                url = NormalizeUrl(url);
+                
+                System.Diagnostics.Debug.WriteLine($"[OpenUrlInTab] 开始处理 - 标题: {title}, URL: {url}, 菜单ID: {menuItemId}, 强制重载: {forceReload}");
+                
+                // 如果有菜单项ID，检查是否已存在来自相同菜单项的标签页
+                if (menuItemId > 0)
+                {
+                    foreach (TabItem tab in MainTabControl.Items)
                     {
-                        // 切换到已存在的标签页
-                        MainTabControl.SelectedItem = tab;
-                        
-                        // 只有在强制重新加载时才刷新页面
-                        if (forceReload && tab.Content is ChromiumWebBrowser browser)
+                        if (tab.Tag is TabInfo tabInfo && tabInfo.MenuItemId == menuItemId)
                         {
-                            browser.Load(url);
-                            System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url} (菜单ID: {menuItemId})");
+                            // 切换到已存在的标签页
+                            MainTabControl.SelectedItem = tab;
+                            
+                            // 检查URL是否发生变化
+                            bool urlChanged = tabInfo.OriginalUrl != url;
+                            bool needReload = forceReload || urlChanged;
+                            
+                            if (needReload && tab.Content is ChromiumWebBrowser browser)
+                            {
+                                // 更新TabInfo中的URL信息
+                                tabInfo.Url = url;
+                                tabInfo.OriginalUrl = url;
+                                
+                                // 安全地加载新URL
+                                LoadUrlSafely(browser, url);
+                                System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url} (菜单ID: {menuItemId}, URL变化: {urlChanged})");
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url} (菜单ID: {menuItemId})");
+                            }
+                            
+                            return tab;
                         }
-                        else
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url} (菜单ID: {menuItemId})");
-                        }
-                        
-                        return tab;
                     }
                 }
-            }
-            else
-            {
-                // 如果没有菜单项ID，则使用原来的URL匹配逻辑（用于向后兼容）
-                foreach (TabItem tab in MainTabControl.Items)
+                else
                 {
-                    if (tab.Tag is TabInfo tabInfo && tabInfo.OriginalUrl == url)
+                    // 如果没有菜单项ID，则使用原来的URL匹配逻辑（用于向后兼容）
+                    foreach (TabItem tab in MainTabControl.Items)
                     {
-                        // 切换到已存在的标签页
-                        MainTabControl.SelectedItem = tab;
-                        
-                        // 只有在强制重新加载时才刷新页面
-                        if (forceReload && tab.Content is ChromiumWebBrowser browser)
+                        if (tab.Tag is TabInfo tabInfo && tabInfo.OriginalUrl == url)
                         {
-                            browser.Load(url);
-                            System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                            // 切换到已存在的标签页
+                            MainTabControl.SelectedItem = tab;
+                            
+                            // 只有在强制重新加载时才刷新页面
+                            if (forceReload && tab.Content is ChromiumWebBrowser browser)
+                            {
+                                LoadUrlSafely(browser, url);
+                                System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url}");
+                            }
+                            
+                            return tab;
                         }
-                        else
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url}");
-                        }
-                        
-                        return tab;
                     }
                 }
+                
+                // 创建新标签页
+                return CreateNewTab(title, url, keepOriginalTitle, menuItemId, menuItemTitle);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[OpenUrlInTab] 发生异常: {ex.Message}");
+                MessageBox.Show($"打开标签页时发生错误: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 标准化URL格式
+        /// </summary>
+        /// <param name="url">原始URL</param>
+        /// <returns>标准化后的URL</returns>
+        private string NormalizeUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return url;
+            
+            url = url.Trim();
+            
+            // 确保URL格式正确
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) && 
+                !url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "https://" + url;
             }
             
-            // 生成唯一的标签页ID
-            string tabId = Guid.NewGuid().ToString();
-            
-            // 从浏览器实例管理器获取浏览器实例
-            var newBrowser = Browser.BrowserInstanceManager.Instance.GetBrowser(url, tabId);
-            
+            return url;
+        }
+
+        /// <summary>
+        /// 安全地加载URL到浏览器
+        /// </summary>
+        /// <param name="browser">浏览器实例</param>
+        /// <param name="url">要加载的URL</param>
+        private void LoadUrlSafely(ChromiumWebBrowser browser, string url)
+        {
+            try
+            {
+                if (browser.IsBrowserInitialized)
+                {
+                    browser.Load(url);
+                    System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 直接加载URL: {url}");
+                }
+                else
+                {
+                    // 如果浏览器未初始化，等待初始化完成后加载
+                    DependencyPropertyChangedEventHandler browserInitializedHandler = null;
+                    browserInitializedHandler = (sender, args) =>
+                    {
+                        try
+                        {
+                            if (browser.IsBrowserInitialized)
+                            {
+                                browser.IsBrowserInitializedChanged -= browserInitializedHandler;
+                                browser.Load(url);
+                                System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 浏览器初始化完成后加载URL: {url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 延迟加载时发生异常: {ex.Message}");
+                        }
+                    };
+                    browser.IsBrowserInitializedChanged += browserInitializedHandler;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 加载URL时发生异常: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 确保浏览器正确加载URL
+        /// </summary>
+        /// <param name="browser">浏览器实例</param>
+        /// <param name="url">URL</param>
+        private void EnsureBrowserLoadsUrl(ChromiumWebBrowser browser, string url)
+        {
+            try
+            {
+                if (!browser.IsBrowserInitialized)
+                {
+                    DependencyPropertyChangedEventHandler browserInitializedHandler = null;
+                    browserInitializedHandler = (sender, args) =>
+                    {
+                        try
+                        {
+                            if (browser.IsBrowserInitialized)
+                            {
+                                browser.IsBrowserInitializedChanged -= browserInitializedHandler;
+                                browser.Load(url);
+                                System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 浏览器初始化完成后加载URL: {url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 延迟加载时发生异常: {ex.Message}");
+                        }
+                    };
+                    browser.IsBrowserInitializedChanged += browserInitializedHandler;
+                }
+                else
+                {
+                    browser.Load(url);
+                    System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 直接加载URL: {url}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 确保浏览器加载URL时发生异常: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 创建新标签页
+        /// </summary>
+        /// <param name="title">标题</param>
+        /// <param name="url">URL</param>
+        /// <param name="keepOriginalTitle">是否保持原始标题</param>
+        /// <param name="menuItemId">菜单项ID</param>
+        /// <param name="menuItemTitle">菜单项标题</param>
+        /// <returns>新创建的标签页</returns>
+        private TabItem CreateNewTab(string title, string url, bool keepOriginalTitle, int menuItemId, string menuItemTitle)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[CreateNewTab] 创建新标签页 - URL: {url}");
+                
+                // 生成唯一的标签页ID
+                string tabId = Guid.NewGuid().ToString();
+                
+                // 从浏览器实例管理器获取浏览器实例（不传URL，避免过早加载）
+                var newBrowser = Browser.BrowserInstanceManager.Instance.GetBrowser("", tabId);
+                
+                // 确保浏览器正确加载URL
+                EnsureBrowserLoadsUrl(newBrowser, url);
+                
+                // 创建浏览器上下文
+                var browserContext = new BrowserContext { IsLoading = true };
+                
+                // 创建 TabInfo 存储信息
+                var newTabInfo = new TabInfo
+                {
+                    Url = url,
+                    TabId = tabId,
+                    OriginalUrl = url,
+                    MenuItemId = menuItemId,
+                    MenuItemTitle = menuItemTitle
+                };
+                
+                // 创建标签页
+                var tabItem = new TabItem
+                {
+                    Header = title,
+                    Tag = newTabInfo,
+                    Content = newBrowser,
+                    DataContext = browserContext
+                };
+                
+                // 设置事件处理器
+                SetupBrowserEventHandlers(newBrowser, tabId, keepOriginalTitle, browserContext);
+                SetupAutoLogin(newBrowser, url);
+                SetupTabUnloadHandler(tabItem, newBrowser);
+                
+                // 添加标签页到控件
+                MainTabControl.Items.Add(tabItem);
+                MainTabControl.SelectedItem = tabItem;
+                
+                System.Diagnostics.Debug.WriteLine($"[CreateNewTab] 新标签页创建完成 - 标题: {title}, URL: {url}");
+                
+                return tabItem;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CreateNewTab] 创建新标签页时发生异常: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 设置浏览器事件处理器
+        /// </summary>
+        /// <param name="browser">浏览器实例</param>
+        /// <param name="tabId">标签页ID</param>
+        /// <param name="keepOriginalTitle">是否保持原始标题</param>
+        /// <param name="browserContext">浏览器上下文</param>
+        private void SetupBrowserEventHandlers(ChromiumWebBrowser browser, string tabId, bool keepOriginalTitle, BrowserContext browserContext)
+        {
             // 使用 FrameLoadEnd 事件来获取页面标题
             EventHandler<FrameLoadEndEventArgs> titleUpdateHandler = null;
             titleUpdateHandler = (sender, args) => 
@@ -429,30 +646,7 @@ namespace BrowserTool
             };
             
             // 添加标题更新事件处理
-            newBrowser.FrameLoadEnd += titleUpdateHandler;
-            
-            var browserContext = new BrowserContext { IsLoading = true };
-            
-            // 自动登录逻辑
-            var siteItem = FindSiteItemByUrl(url);
-            if (siteItem != null && siteItem.AutoLogin)
-            {
-                // 使用弱引用事件处理器避免内存泄漏
-                EventHandler<FrameLoadEndEventArgs> frameLoadEndHandler = null;
-                frameLoadEndHandler = (sender, args) =>
-                {
-                    if (args.Frame.IsMain)
-                    {
-                        // 执行自动登录脚本
-                        ExecuteAutoLoginScript(args.Frame, siteItem);
-                        
-                        // 执行一次后取消事件订阅
-                        newBrowser.FrameLoadEnd -= frameLoadEndHandler;
-                    }
-                };
-                
-                newBrowser.FrameLoadEnd += frameLoadEndHandler;
-            }
+            browser.FrameLoadEnd += titleUpdateHandler;
             
             // 使用弱引用事件处理器避免内存泄漏
             EventHandler<LoadingStateChangedEventArgs> loadingStateChangedHandler = null;
@@ -467,47 +661,98 @@ namespace BrowserTool
                 }, System.Windows.Threading.DispatcherPriority.Background);
             };
             
-            newBrowser.LoadingStateChanged += loadingStateChangedHandler;
+            browser.LoadingStateChanged += loadingStateChangedHandler;
             
-            // 创建 TabInfo 存储 URL 和 tabId
-            var newTabInfo = new TabInfo
+            // 存储事件处理器引用以便后续清理
+            if (browser.Tag == null)
             {
-                Url = url,
-                TabId = tabId,
-                OriginalUrl = url,
-                MenuItemId = menuItemId,
-                MenuItemTitle = menuItemTitle
-            };
+                browser.Tag = new Dictionary<string, object>();
+            }
             
-            // 创建标签页并添加到TabControl
-            var tabItem = new TabItem
+            if (browser.Tag is Dictionary<string, object> browserTags)
             {
-                Header = title,
-                Tag = newTabInfo, 
-                Content = newBrowser,
-                DataContext = browserContext
-            };
-            
+                browserTags["titleUpdateHandler"] = titleUpdateHandler;
+                browserTags["loadingStateChangedHandler"] = loadingStateChangedHandler;
+            }
+        }
+
+        /// <summary>
+        /// 设置自动登录
+        /// </summary>
+        /// <param name="browser">浏览器实例</param>
+        /// <param name="url">URL</param>
+        private void SetupAutoLogin(ChromiumWebBrowser browser, string url)
+        {
+            // 自动登录逻辑
+            var siteItem = FindSiteItemByUrl(url);
+            if (siteItem != null && siteItem.AutoLogin)
+            {
+                // 使用弱引用事件处理器避免内存泄漏
+                EventHandler<FrameLoadEndEventArgs> frameLoadEndHandler = null;
+                frameLoadEndHandler = (sender, args) =>
+                {
+                    if (args.Frame.IsMain)
+                    {
+                        // 执行自动登录脚本
+                        ExecuteAutoLoginScript(args.Frame, siteItem);
+                        
+                        // 执行一次后取消事件订阅
+                        browser.FrameLoadEnd -= frameLoadEndHandler;
+                    }
+                };
+                
+                browser.FrameLoadEnd += frameLoadEndHandler;
+            }
+        }
+
+        /// <summary>
+        /// 设置标签页卸载事件处理器
+        /// </summary>
+        /// <param name="tabItem">标签页</param>
+        /// <param name="browser">浏览器实例</param>
+        private void SetupTabUnloadHandler(TabItem tabItem, ChromiumWebBrowser browser)
+        {
             // 添加标签页关闭事件处理
             tabItem.Unloaded += (sender, e) =>
             {
-                // 取消事件订阅
-                newBrowser.LoadingStateChanged -= loadingStateChangedHandler;
-                newBrowser.FrameLoadEnd -= titleUpdateHandler;
-                
-                // 释放浏览器实例
-                if (sender is TabItem tab && tab.Tag is TabInfo info)
+                try
                 {
-                    Browser.BrowserInstanceManager.Instance.ReleaseBrowser(info.TabId);
+                    System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 标签页卸载开始");
+                    
+                    // 取消事件订阅
+                    if (browser.Tag is Dictionary<string, object> browserTags)
+                    {
+                        if (browserTags.TryGetValue("titleUpdateHandler", out object titleHandler) && 
+                            titleHandler is EventHandler<FrameLoadEndEventArgs> titleUpdateHandler)
+                        {
+                            browser.FrameLoadEnd -= titleUpdateHandler;
+                        }
+                        
+                        if (browserTags.TryGetValue("loadingStateChangedHandler", out object loadingHandler) && 
+                            loadingHandler is EventHandler<LoadingStateChangedEventArgs> loadingStateChangedHandler)
+                        {
+                            browser.LoadingStateChanged -= loadingStateChangedHandler;
+                        }
+                        
+                        browserTags.Clear();
+                    }
+                    
+                    // 释放浏览器实例
+                    if (sender is TabItem tab && tab.Tag is TabInfo info)
+                    {
+                        Browser.BrowserInstanceManager.Instance.ReleaseBrowser(info.TabId);
+                        System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 浏览器实例已释放 - TabId: {info.TabId}");
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 标签页卸载完成");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 标签页卸载时发生异常: {ex.Message}");
                 }
             };
-            
-            MainTabControl.Items.Add(tabItem);
-            MainTabControl.SelectedItem = tabItem;
-            
-            return tabItem;
         }
-        
+
         /// <summary>
         /// 执行自动登录脚本
         /// </summary>
