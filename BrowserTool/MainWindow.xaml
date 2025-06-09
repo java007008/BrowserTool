@@ -347,6 +347,102 @@
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#CCCCCC"/>
 
+        <!-- TabItem样式 -->
+        <Style TargetType="TabItem">
+            <!-- 固定Tab宽度为160px -->
+            <Setter Property="Width" Value="140"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border" 
+                                BorderThickness="1,1,1,0" 
+                                BorderBrush="#3c3c3c"
+                                Background="Transparent"
+                                Margin="0,0,2,0"
+                                Width="140">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- 标题文本，支持截取显示 -->
+                                <TextBlock Grid.Column="0" 
+                                          Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Foreground="#FFFFFF"
+                                          Margin="8,4,4,4"
+                                          VerticalAlignment="Center"
+                                          TextTrimming="CharacterEllipsis"
+                                          ToolTip="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                <!-- 关闭按钮 -->
+                                <Button Grid.Column="1" 
+                                        Width="16" Height="16" 
+                                        Margin="0,0,8,0"
+                                        Click="CloseTabButton_Click"
+                                        Tag="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Cursor="Hand"
+                                        VerticalAlignment="Center">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Cursor" Value="Hand"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Border" 
+                                                                Background="Transparent"
+                                                                CornerRadius="8">
+                                                            <TextBlock Text="&#xE8BB;" 
+                                                                     FontFamily="Segoe MDL2 Assets" 
+                                                                     FontSize="10" 
+                                                                     Foreground="#666"
+                                                                     HorizontalAlignment="Center" 
+                                                                     VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Border" Property="Background" Value="#E0E0E0"/>
+                                                                <Setter Property="Foreground" Value="#333"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- 选中状态：更突出的蓝色背景 -->
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#2979FF"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#2979FF"/>
+                            </Trigger>
+                            <!-- 非选中状态的鼠标悬停：中等灰色背景 -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Border" Property="Background" Value="#3a3a3a"/>
+                            </MultiTrigger>
+                            <!-- 选中状态的鼠标悬停：更亮的蓝色背景 -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Border" Property="Background" Value="#4A90E2"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <Grid>
@@ -660,21 +756,22 @@
                                                 BorderThickness="1,1,1,0" 
                                                 BorderBrush="#3c3c3c"
                                                 Background="Transparent"
-                                                Margin="0,0,2,0">
+                                                Margin="0,0,2,0"
+                                                Width="140">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <ContentPresenter Grid.Column="0" 
-                                                                ContentSource="Header" 
-                                                                Margin="8,4,8,4">
-                                                    <ContentPresenter.Resources>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="#FFFFFF"/>
-                                                        </Style>
-                                                    </ContentPresenter.Resources>
-                                                </ContentPresenter>
+                                                <!-- 标题文本，支持截取显示 -->
+                                                <TextBlock Grid.Column="0" 
+                                                          Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
+                                                          Foreground="#FFFFFF"
+                                                          Margin="8,4,4,4"
+                                                          VerticalAlignment="Center"
+                                                          TextTrimming="CharacterEllipsis"
+                                                          ToolTip="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                <!-- 关闭按钮 -->
                                                 <Button Grid.Column="1" 
                                                         Width="16" Height="16" 
                                                         Margin="0,0,8,0"
@@ -717,10 +814,10 @@
                                             </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
-                                            <!-- 默认选中状态：明显的背景色 -->
+                                            <!-- 选中状态：更突出的蓝色背景 -->
                                             <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Border" Property="Background" Value="#4a4a4a"/>
-                                                <Setter TargetName="Border" Property="BorderBrush" Value="#4a4a4a"/>
+                                                <Setter TargetName="Border" Property="Background" Value="#2979FF"/>
+                                                <Setter TargetName="Border" Property="BorderBrush" Value="#2979FF"/>
                                             </Trigger>
                                             <!-- 非选中状态的鼠标悬停：中等灰色背景 -->
                                             <MultiTrigger>
@@ -730,13 +827,13 @@
                                                 </MultiTrigger.Conditions>
                                                 <Setter TargetName="Border" Property="Background" Value="#3a3a3a"/>
                                             </MultiTrigger>
-                                            <!-- 选中状态的鼠标悬停：更亮的灰色背景 -->
+                                            <!-- 选中状态的鼠标悬停：更亮的蓝色背景 -->
                                             <MultiTrigger>
                                                 <MultiTrigger.Conditions>
                                                     <Condition Property="IsMouseOver" Value="True"/>
                                                     <Condition Property="IsSelected" Value="True"/>
                                                 </MultiTrigger.Conditions>
-                                                <Setter TargetName="Border" Property="Background" Value="#5a5a5a"/>
+                                                <Setter TargetName="Border" Property="Background" Value="#4A90E2"/>
                                             </MultiTrigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
