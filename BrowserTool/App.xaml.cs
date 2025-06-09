@@ -17,6 +17,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Hardcodet.Wpf.TaskbarNotification;
 using BrowserTool.Database;
+using BrowserTool.Utils;
 using CefSharp;
 using CefSharp.Wpf;
 using System.IO.Pipes;

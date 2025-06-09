@@ -33,6 +33,7 @@ using BrowserTool.Database.Entities;
 using BrowserTool.Utils;
 using Hardcodet.Wpf.TaskbarNotification;
 
+
 namespace BrowserTool
 {
     /// <summary>
@@ -91,6 +92,8 @@ namespace BrowserTool
         // 鼠标活动模拟器实例
         private MouseActivitySimulator _mouseActivitySimulator;
 
+        private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+
         public MainWindow()
         {
             try
@@ -135,19 +138,19 @@ namespace BrowserTool
         {
             if (msg == WM_SHOWMAINWINDOW)
             {
-                System.Diagnostics.Debug.WriteLine($"[MainWindow] 收到WM_SHOWMAINWINDOW消息: {msg}");
+                _logger.Debug($"收到WM_SHOWMAINWINDOW消息: {msg}");
                 // 收到显示主窗口的消息，调用App的ShowMainWindow方法
                 this.Dispatcher.BeginInvoke(new Action(() =>
                 {
                     var app = App.GetCurrentApp();
                     if (app != null)
                     {
-                        System.Diagnostics.Debug.WriteLine("[MainWindow] 调用App.ShowMainWindow");
+                        _logger.Debug("调用App.ShowMainWindow");
                         app.ShowMainWindow();
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("[MainWindow] App实例为null");
+                        _logger.Debug("App实例为null");
                     }
                 }));
                 handled = true;
@@ -254,7 +257,7 @@ namespace BrowserTool
         /// </summary>
         private void MenuTree_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"[双击事件] MouseDoubleClick 被触发");
+            _logger.Debug($"[双击事件] MouseDoubleClick 被触发");
             
             // 获取双击的TreeViewItem
             var hitTest = e.OriginalSource as DependencyObject;
@@ -293,30 +296,30 @@ namespace BrowserTool
                     parent = VisualTreeHelper.GetParent(parent);
                 }
 
-                System.Diagnostics.Debug.WriteLine($"[双击检测] 项目: {clickedItem.Header}, 是否顶级: {isTopLevel}");
+                _logger.Debug($"[双击检测] 项目: {clickedItem.Header}, 是否顶级: {isTopLevel}");
 
                 // 如果是一级菜单，切换展开/收缩状态
                 if (isTopLevel)
                 {
                     // 记录当前状态
                     bool currentState = clickedItem.IsExpanded;
-                    System.Diagnostics.Debug.WriteLine($"[一级菜单双击] {clickedItem.Header} - 当前展开状态: {currentState}");
+                    _logger.Debug($"[一级菜单双击] {clickedItem.Header} - 当前展开状态: {currentState}");
                     
                     // 切换状态
                     clickedItem.IsExpanded = !currentState;
                     
-                    System.Diagnostics.Debug.WriteLine($"[一级菜单双击] {clickedItem.Header} - 新展开状态: {clickedItem.IsExpanded}");
+                    _logger.Debug($"[一级菜单双击] {clickedItem.Header} - 新展开状态: {clickedItem.IsExpanded}");
                     
                     e.Handled = true; // 阻止事件继续传播
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[二级菜单双击] 忽略处理");
+                    _logger.Debug($"[二级菜单双击] 忽略处理");
                 }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[双击事件] 未找到TreeViewItem");
+                _logger.Debug($"[双击事件] 未找到TreeViewItem");
             }
         }
 
@@ -337,7 +340,7 @@ namespace BrowserTool
                 // 参数验证
                 if (string.IsNullOrWhiteSpace(url))
                 {
-                    System.Diagnostics.Debug.WriteLine("[OpenUrlInTab] URL为空，无法打开标签页");
+                    _logger.Warn("OpenUrlInTab调用失败：URL为空");
                     return null;
                 }
                 
@@ -349,7 +352,7 @@ namespace BrowserTool
                 // URL标准化
                 url = NormalizeUrl(url);
                 
-                System.Diagnostics.Debug.WriteLine($"[OpenUrlInTab] 开始处理 - 标题: {title}, URL: {url}, 菜单ID: {menuItemId}, 强制重载: {forceReload}");
+                _logger.Debug($"开始处理OpenUrlInTab", $"标题: {title}, URL: {url}, 菜单ID: {menuItemId}, 强制重载: {forceReload}");
                 
                 // 如果有菜单项ID，检查是否已存在来自相同菜单项的标签页
                 if (menuItemId > 0)
@@ -373,11 +376,11 @@ namespace BrowserTool
                                 
                                 // 安全地加载新URL
                                 LoadUrlSafely(browser, url);
-                                System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url} (菜单ID: {menuItemId}, URL变化: {urlChanged})");
+                                _logger.Info("标签页重新加载", $"{title} - {url} (菜单ID: {menuItemId}, URL变化: {urlChanged})");
                             }
                             else
                             {
-                                System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url} (菜单ID: {menuItemId})");
+                                _logger.Debug("标签页切换", $"{title} - {url} (菜单ID: {menuItemId})");
                             }
                             
                             return tab;
@@ -398,11 +401,11 @@ namespace BrowserTool
                             if (forceReload && tab.Content is ChromiumWebBrowser browser)
                             {
                                 LoadUrlSafely(browser, url);
-                                System.Diagnostics.Debug.WriteLine($"[标签页重新加载] {title} - {url}");
+                                _logger.Info("标签页重新加载", $"{title} - {url}");
                             }
                             else
                             {
-                                System.Diagnostics.Debug.WriteLine($"[标签页切换] {title} - {url}");
+                                _logger.Debug("标签页切换", $"{title} - {url}");
                             }
                             
                             return tab;
@@ -411,11 +414,12 @@ namespace BrowserTool
                 }
                 
                 // 创建新标签页
+                _logger.Info("创建新标签页", $"标题: {title}, URL: {url}, 菜单ID: {menuItemId}");
                 return CreateNewTab(title, url, keepOriginalTitle, menuItemId, menuItemTitle);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[OpenUrlInTab] 发生异常: {ex.Message}");
+                _logger.Error("OpenUrlInTab发生异常", ex);
                 MessageBox.Show($"打开标签页时发生错误: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
@@ -457,7 +461,7 @@ namespace BrowserTool
                 if (browser.IsBrowserInitialized)
                 {
                     browser.Load(url);
-                    System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 直接加载URL: {url}");
+                    _logger.Debug($"直接加载URL: {url}");
                 }
                 else
                 {
@@ -471,12 +475,12 @@ namespace BrowserTool
                             {
                                 browser.IsBrowserInitializedChanged -= browserInitializedHandler;
                                 browser.Load(url);
-                                System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 浏览器初始化完成后加载URL: {url}");
+                                _logger.Debug($"浏览器初始化完成后加载URL: {url}");
                             }
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 延迟加载时发生异常: {ex.Message}");
+                            _logger.Debug($"延迟加载时发生异常: {ex.Message}");
                         }
                     };
                     browser.IsBrowserInitializedChanged += browserInitializedHandler;
@@ -484,7 +488,7 @@ namespace BrowserTool
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[LoadUrlSafely] 加载URL时发生异常: {ex.Message}");
+                _logger.Debug($"加载URL时发生异常: {ex.Message}");
                 throw;
             }
         }
@@ -509,12 +513,12 @@ namespace BrowserTool
                             {
                                 browser.IsBrowserInitializedChanged -= browserInitializedHandler;
                                 browser.Load(url);
-                                System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 浏览器初始化完成后加载URL: {url}");
+                                _logger.Debug($"浏览器初始化完成后加载URL: {url}");
                             }
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 延迟加载时发生异常: {ex.Message}");
+                            _logger.Debug($"延迟加载时发生异常: {ex.Message}");
                         }
                     };
                     browser.IsBrowserInitializedChanged += browserInitializedHandler;
@@ -522,12 +526,12 @@ namespace BrowserTool
                 else
                 {
                     browser.Load(url);
-                    System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 直接加载URL: {url}");
+                    _logger.Debug($"直接加载URL: {url}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[EnsureBrowserLoadsUrl] 确保浏览器加载URL时发生异常: {ex.Message}");
+                _logger.Debug($"确保浏览器加载URL时发生异常: {ex.Message}");
             }
         }
 
@@ -544,7 +548,7 @@ namespace BrowserTool
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[CreateNewTab] 创建新标签页 - URL: {url}");
+                _logger.Debug($"创建新标签页 - URL: {url}");
                 
                 // 生成唯一的标签页ID
                 string tabId = Guid.NewGuid().ToString();
@@ -586,13 +590,13 @@ namespace BrowserTool
                 MainTabControl.Items.Add(tabItem);
                 MainTabControl.SelectedItem = tabItem;
                 
-                System.Diagnostics.Debug.WriteLine($"[CreateNewTab] 新标签页创建完成 - 标题: {title}, URL: {url}");
+                _logger.Debug($"新标签页创建完成 - 标题: {title}, URL: {url}");
                 
                 return tabItem;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CreateNewTab] 创建新标签页时发生异常: {ex.Message}");
+                _logger.Debug($"创建新标签页时发生异常: {ex.Message}");
                 throw;
             }
         }
@@ -634,7 +638,7 @@ namespace BrowserTool
                                         if (tab.Tag is TabInfo info && info.TabId == tabId)
                                         {
                                             tab.Header = pageTitle;
-                                            System.Diagnostics.Debug.WriteLine($"[标签页标题已更新] {pageTitle}");
+                                            _logger.Debug($"标签页标题已更新");
                                             break;
                                         }
                                     }
@@ -717,7 +721,7 @@ namespace BrowserTool
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 标签页卸载开始");
+                    _logger.Debug($"标签页卸载开始");
                     
                     // 取消事件订阅
                     if (browser.Tag is Dictionary<string, object> browserTags)
@@ -741,14 +745,14 @@ namespace BrowserTool
                     if (sender is TabItem tab && tab.Tag is TabInfo info)
                     {
                         Browser.BrowserInstanceManager.Instance.ReleaseBrowser(info.TabId);
-                        System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 浏览器实例已释放 - TabId: {info.TabId}");
+                        _logger.Debug($"浏览器实例已释放 - TabId: {info.TabId}");
                     }
                     
-                    System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 标签页卸载完成");
+                    _logger.Debug($"标签页卸载完成");
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SetupTabUnloadHandler] 标签页卸载时发生异常: {ex.Message}");
+                    _logger.Debug($"标签页卸载时发生异常: {ex.Message}");
                 }
             };
         }
@@ -902,11 +906,11 @@ namespace BrowserTool
             }
             catch (ObjectDisposedException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[抽屉切换] 浏览器对象已释放: {ex.Message}");
+                _logger.Debug($"浏览器对象已释放: {ex.Message}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[抽屉切换] 通知浏览器布局变化时出错: {ex.Message}");
+                _logger.Debug($"通知浏览器布局变化时出错: {ex.Message}");
             }
         }
 
@@ -1366,7 +1370,7 @@ namespace BrowserTool
 
                 // 确保每次都从数据库重新加载最新数据
                 var allGroups = SiteConfig.GetAllGroups();
-                System.Diagnostics.Debug.WriteLine($"加载到 {allGroups.Count} 个分组");
+                _logger.Debug($"加载到 {allGroups.Count} 个分组");
 
                 // 清空现有数据
                 menuGroups.Clear();
@@ -1387,7 +1391,7 @@ namespace BrowserTool
                     }).ToList()
                 }).ToList();
 
-                System.Diagnostics.Debug.WriteLine($"转换后得到 {menuGroups.Count} 个菜单组");
+                _logger.Debug($"转换后得到 {menuGroups.Count} 个菜单组");
 
                 // 强制刷新 UI
                 if (MenuTree != null)
@@ -1426,7 +1430,7 @@ namespace BrowserTool
                                 }
                                 catch (Exception ex)
                                 {
-                                    System.Diagnostics.Debug.WriteLine($"加载图标时出错：{ex.Message}");
+                                    _logger.Debug($"加载图标时出错：{ex.Message}");
                                 }
                             }
                             stackPanel.Children.Add(new TextBlock { Text = item.Name, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CCCCCC")) });
@@ -1435,12 +1439,12 @@ namespace BrowserTool
                         }
                         MenuTree.Items.Add(groupItem);
                     }
-                    System.Diagnostics.Debug.WriteLine($"UI 更新完成，共添加 {MenuTree.Items.Count} 个分组");
+                    _logger.Debug($"UI 更新完成，共添加 {MenuTree.Items.Count} 个分组");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"加载菜单数据时出错：{ex}");
+                _logger.Debug($"加载菜单数据时出错：{ex}");
                 MessageBox.Show($"加载菜单数据时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -1485,7 +1489,7 @@ namespace BrowserTool
             var settingsWindow = new SettingsWindow(this);
             
             // 确保在显示对话框之前订阅事件
-            System.Diagnostics.Debug.WriteLine("[MainWindow.btnSettings_Click] 准备订阅 SettingsSaved 事件");
+            _logger.Debug("[MainWindow.btnSettings_Click] 准备订阅 SettingsSaved 事件");
             
             // 使用具名方法而不是匿名方法，以便于调试
             settingsWindow.SettingsSaved += SettingsWindow_SettingsSaved;
@@ -1494,7 +1498,7 @@ namespace BrowserTool
             bool? result = settingsWindow.ShowDialog();
             
             // 对话框关闭后，无论如何都刷新菜单（不依赖事件）
-            System.Diagnostics.Debug.WriteLine("[MainWindow.btnSettings_Click] 设置窗口已关闭，准备刷新菜单");
+            _logger.Debug("[MainWindow.btnSettings_Click] 设置窗口已关闭，准备刷新菜单");
             
             // 刷新菜单
             RefreshMenuFromSettings();
@@ -1510,7 +1514,7 @@ namespace BrowserTool
                 try
                 {
                     // 调试输出
-                    System.Diagnostics.Debug.WriteLine("[MainWindow.RefreshMenuFromSettings] 开始重新加载菜单");
+                    _logger.Debug("[MainWindow.RefreshMenuFromSettings] 开始重新加载菜单");
                     
                     // 重新加载菜单
                     LoadMenuGroupsFromDb();
@@ -1518,11 +1522,11 @@ namespace BrowserTool
                     MenuTree.Items.Refresh();
                     
                     // 调试输出
-                    System.Diagnostics.Debug.WriteLine("[MainWindow.RefreshMenuFromSettings] 菜单刷新完成");
+                    _logger.Debug("[MainWindow.RefreshMenuFromSettings] 菜单刷新完成");
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[MainWindow.RefreshMenuFromSettings] 刷新菜单时出错：{ex}");
+                    _logger.Debug($"[MainWindow.RefreshMenuFromSettings] 刷新菜单时出错：{ex}");
                     MessageBox.Show($"刷新菜单时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }), System.Windows.Threading.DispatcherPriority.Render);
@@ -1531,14 +1535,14 @@ namespace BrowserTool
         private void SettingsWindow_SettingsSaved(object sender, EventArgs args)
         {
             // 调试输出
-            System.Diagnostics.Debug.WriteLine("[MainWindow] SettingsSaved 事件被触发，准备刷新菜单");
+            _logger.Debug("[MainWindow] SettingsSaved 事件被触发，准备刷新菜单");
             
             // 使用 Dispatcher 确保在 UI 线程上执行
             Dispatcher.BeginInvoke(new Action(() => {
                 try
                 {
                     // 调试输出
-                    System.Diagnostics.Debug.WriteLine("[MainWindow] 开始重新加载菜单");
+                    _logger.Debug("[MainWindow] 开始重新加载菜单");
                     
                     // 重新加载菜单
                     LoadMenuGroupsFromDb();
@@ -1546,11 +1550,11 @@ namespace BrowserTool
                     MenuTree.Items.Refresh();
                     
                     // 调试输出
-                    System.Diagnostics.Debug.WriteLine("[MainWindow] 菜单刷新完成");
+                    _logger.Debug("[MainWindow] 菜单刷新完成");
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[MainWindow] 刷新菜单时出错：{ex}");
+                    _logger.Debug($"[MainWindow] 刷新菜单时出错：{ex}");
                     MessageBox.Show($"刷新菜单时出错：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }), System.Windows.Threading.DispatcherPriority.Render);
@@ -1709,11 +1713,11 @@ namespace BrowserTool
                         }
                     }
                     
-                    System.Diagnostics.Debug.WriteLine($"[窗口大小改变] 新尺寸: {e.NewSize.Width}x{e.NewSize.Height}");
+                    _logger.Debug($"[窗口大小改变] 新尺寸: {e.NewSize.Width}x{e.NewSize.Height}");
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[窗口大小改变处理错误] {ex.Message}");
+                    _logger.Debug($"[窗口大小改变处理错误] {ex.Message}");
                 }
             }), System.Windows.Threading.DispatcherPriority.Background);
         }
@@ -1762,7 +1766,7 @@ namespace BrowserTool
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[关闭标签页错误] {ex.Message}");
+                _logger.Debug($"[关闭标签页错误] {ex.Message}");
             }
         }
 
