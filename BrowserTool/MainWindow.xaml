@@ -14,7 +14,8 @@
         BorderBrush="Transparent"
         Icon="Resources/app.ico"
         ResizeMode="CanResize"
-        SizeChanged="MainWindow_SizeChanged">
+        SizeChanged="MainWindow_SizeChanged"
+        KeyDown="MainWindow_KeyDown">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" 
                       ResizeBorderThickness="5"
