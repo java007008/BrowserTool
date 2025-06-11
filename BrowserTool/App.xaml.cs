@@ -22,6 +22,7 @@ using CefSharp;
 using CefSharp.Wpf;
 using System.IO.Pipes;
 using System.Text;
+using System.Runtime.CompilerServices;
 
 namespace BrowserTool
 {
@@ -433,7 +434,7 @@ namespace BrowserTool
                                     // 在UI线程中打开URL
                                     Dispatcher.BeginInvoke(new Action(() =>
                                     {
-                                        if (mainWindow != null)
+                                        if (mainWindow != null && Utils.LoginManager.IsLoggedIn)
                                         {
                                             mainWindow.OpenUrlInTab("Loading...", url, false);
                                             ShowMainWindow();

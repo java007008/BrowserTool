@@ -18,7 +18,7 @@ namespace BrowserTool.Utils
         }
         public static string GetAesKey(int keyLen = 32)
         {
-            if (string.IsNullOrEmpty(_md5Key)) throw new Exception("密钥不存在！");
+            if (string.IsNullOrEmpty(_md5Key)) throw new Exception("未登录！");
             var key = _md5Key.Substring(1); // 从第2位开始
             if (key.Length < keyLen)
                 key = key.PadRight(keyLen, '0');

@@ -91,7 +91,7 @@ namespace BrowserTool.Browser
                     if (mainWindow != null)
                     {
                         mainWindow.Dispatcher.BeginInvoke(new Action(() => {
-                            mainWindow.OpenUrlInTab("Loading...", linkUrl, false);
+                            mainWindow.OpenUrlInTab("Loading...", linkUrl, false,false,0,null,false);
                         }));
                     }
                 });

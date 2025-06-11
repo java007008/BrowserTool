@@ -332,10 +332,11 @@ namespace BrowserTool
         /// <param name="menuItemId">菜单项ID，用于标识来源菜单</param>
         /// <param name="menuItemTitle">菜单项标题</param>
         /// <returns>创建的标签页对象，如果已存在相同的标签页则返回该标签页</returns>
-        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false, bool forceReload = false, int menuItemId = 0, string menuItemTitle = null)
+        public TabItem OpenUrlInTab(string title, string url, bool keepOriginalTitle = false, bool forceReload = false, int menuItemId = 0, string menuItemTitle = null, bool selectedNewTab = true)
         {
             try
             {
+               
                 // 参数验证
                 if (string.IsNullOrWhiteSpace(url))
                 {
@@ -361,7 +362,12 @@ namespace BrowserTool
                         if (tab.Tag is TabInfo tabInfo && tabInfo.MenuItemId == menuItemId)
                         {
                             // 切换到已存在的标签页
-                            MainTabControl.SelectedItem = tab;
+                            if (selectedNewTab)
+                            { 
+                                MainTabControl.SelectedItem = tab; 
+                            }
+
+                            
                             
                             // 检查URL是否发生变化
                             bool urlChanged = tabInfo.OriginalUrl != url;
@@ -395,6 +401,7 @@ namespace BrowserTool
                         {
                             // 切换到已存在的标签页
                             MainTabControl.SelectedItem = tab;
+
                             
                             // 只有在强制重新加载时才刷新页面
                             if (forceReload && tab.Content is ChromiumWebBrowser browser)
@@ -414,7 +421,7 @@ namespace BrowserTool
                 
                 // 创建新标签页
                 _logger.Info("创建新标签页", $"标题: {title}, URL: {url}, 菜单ID: {menuItemId}");
-                return CreateNewTab(title, url, keepOriginalTitle, menuItemId, menuItemTitle);
+                return CreateNewTab(title, url, keepOriginalTitle, menuItemId, menuItemTitle, selectedNewTab);
             }
             catch (Exception ex)
             {
@@ -543,7 +550,7 @@ namespace BrowserTool
         /// <param name="menuItemId">菜单项ID</param>
         /// <param name="menuItemTitle">菜单项标题</param>
         /// <returns>新创建的标签页</returns>
-        private TabItem CreateNewTab(string title, string url, bool keepOriginalTitle, int menuItemId, string menuItemTitle)
+        private TabItem CreateNewTab(string title, string url, bool keepOriginalTitle, int menuItemId, string menuItemTitle, bool selectedNewTab = true)
         {
             try
             {
@@ -587,7 +594,11 @@ namespace BrowserTool
                 
                 // 添加标签页到控件
                 MainTabControl.Items.Add(tabItem);
-                MainTabControl.SelectedItem = tabItem;
+                if (selectedNewTab)
+                {
+                    MainTabControl.SelectedItem = tabItem;
+                }
+              
                 
                 _logger.Debug($"新标签页创建完成 - 标题: {title}, URL: {url}");
                 
@@ -1843,6 +1854,7 @@ namespace BrowserTool
             }
         }
 
+    
         /// <summary>
         /// 登录状态变化事件处理
         /// </summary>
@@ -1854,6 +1866,7 @@ namespace BrowserTool
             {
                 if (isLoggedIn)
                 {
+                    
                     _mouseActivitySimulator = new MouseActivitySimulator();
                     _mouseActivitySimulator.Start();
 
