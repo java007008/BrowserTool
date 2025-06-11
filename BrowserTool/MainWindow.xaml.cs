@@ -33,7 +33,6 @@ using BrowserTool.Database.Entities;
 using BrowserTool.Utils;
 using Hardcodet.Wpf.TaskbarNotification;
 
-
 namespace BrowserTool
 {
     /// <summary>
@@ -56,7 +55,7 @@ namespace BrowserTool
         /// </summary>
         public string MenuItemTitle { get; set; }
     }
-    
+
     /// <summary>
     /// MainWindow.xaml 的交互逻辑
     /// </summary>
@@ -818,13 +817,37 @@ namespace BrowserTool
         /// </summary>
         private void MainWindow_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F12)
+            try
             {
-                // 获取当前Tab的浏览器控件
-                if (MainTabControl.SelectedItem is TabItem tab && tab.Content is ChromiumWebBrowser currentBrowser)
+                if (e.Key == Key.F12)
                 {
-                    CefHelper.ShowDevTools(currentBrowser);
+                    // 获取当前Tab的浏览器控件
+                    if (MainTabControl.SelectedItem is TabItem tab && tab.Content is ChromiumWebBrowser currentBrowser)
+                    {
+                        CefHelper.ShowDevTools(currentBrowser);
+                    }
                 }
+                // 只处理Ctrl+F，不影响其他快捷键如F12
+                if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+                {
+                    ShowSearchBar();
+                    e.Handled = true;
+                    return;
+                }
+
+                // 只在搜索栏可见时处理Esc键
+                if (e.Key == Key.Escape && PageSearchBar.Visibility == Visibility.Visible)
+                {
+                    HideSearchBar();
+                    e.Handled = true;
+                    return;
+                }
+
+                // 不处理其他按键，让它们正常传递（包括F12等）
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug($"[键盘事件处理错误] {ex.Message}");
             }
         }
 
@@ -1092,6 +1115,32 @@ namespace BrowserTool
 
         private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            try
+            {
+                // 当切换标签页时，清除菜单的选中状态
+                // 这样确保菜单状态与当前活动标签页不会产生混淆
+                ClearTreeViewSelection();
+                
+                // 如果搜索栏可见，更新搜索栏关联的浏览器
+                if (PageSearchBar.Visibility == Visibility.Visible)
+                {
+                    var currentTab = MainTabControl.SelectedItem as TabItem;
+                    if (currentTab?.Content is ChromiumWebBrowser browser)
+                    {
+                        PageSearchBar.SetBrowser(browser);
+                    }
+                    else
+                    {
+                        // 如果当前标签页没有浏览器，隐藏搜索栏
+                        HideSearchBar();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug($"[标签页切换错误] {ex.Message}");
+            }
+
             if (MainTabControl.SelectedItem is TabItem tabItem)
             {
                 var browser = tabItem.Content as ChromiumWebBrowser;
@@ -1691,6 +1740,29 @@ namespace BrowserTool
         /// </summary>
         private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
         {
+            //try
+            //{
+            //    // 遍历所有打开的浏览器标签页并强制更新布局
+            //    foreach (TabItem tabItem in MainTabControl.Items)
+            //    {
+            //        if (tabItem.Content is ChromiumWebBrowser browser)
+            //        {
+            //            // 强制更新浏览器布局
+            //            browser.UpdateLayout();
+
+            //            // 通过JavaScript触发resize事件，确保网页内容正确调整
+            //            if (browser.IsBrowserInitialized)
+            //            {
+            //                browser.ExecuteScriptAsync("window.dispatchEvent(new Event('resize'));");
+            //            }
+            //        }
+            //    }
+            //}
+            //catch (Exception ex)
+            //{
+            //    _logger.Debug($"[窗口大小变化处理错误] {ex.Message}");
+            //}
+
             // 延迟执行以确保布局完成
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -1756,6 +1828,7 @@ namespace BrowserTool
                     
                     // 移除标签页
                     MainTabControl.Items.Remove(tabItem);
+                    ClearTreeViewSelection();
                     
                     // 如果没有标签页了，可以考虑添加一个默认标签页或隐藏标签控件
                     if (MainTabControl.Items.Count == 0)
@@ -1790,5 +1863,121 @@ namespace BrowserTool
                
             }));
         }
+
+        #region 搜索功能
+
+        ///// <summary>
+        ///// 主窗口键盘事件处理
+        ///// </summary>
+        //private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        //{
+        //    try
+        //    {
+        //        // 只处理Ctrl+F，不影响其他快捷键如F12
+        //        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+        //        {
+        //            ShowSearchBar();
+        //            e.Handled = true;
+        //            return;
+        //        }
+                
+        //        // 只在搜索栏可见时处理Esc键
+        //        if (e.Key == Key.Escape && PageSearchBar.Visibility == Visibility.Visible)
+        //        {
+        //            HideSearchBar();
+        //            e.Handled = true;
+        //            return;
+        //        }
+                
+        //        // 不处理其他按键，让它们正常传递（包括F12等）
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.Debug($"[键盘事件处理错误] {ex.Message}");
+        //    }
+        //}
+
+        /// <summary>
+        /// 显示搜索栏
+        /// </summary>
+        private void ShowSearchBar()
+        {
+            try
+            {
+                var currentTab = MainTabControl.SelectedItem as TabItem;
+                if (currentTab?.Content is ChromiumWebBrowser browser)
+                {
+                    PageSearchBar.SetBrowser(browser);
+                    PageSearchBar.Visibility = Visibility.Visible;
+                    PageSearchBar.FocusSearchBox();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug($"[显示搜索栏错误] {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 隐藏搜索栏
+        /// </summary>
+        private void HideSearchBar()
+        {
+            try
+            {
+                PageSearchBar.Visibility = Visibility.Collapsed;
+                PageSearchBar.Clear();
+                
+                // 将焦点返回到浏览器
+                var currentTab = MainTabControl.SelectedItem as TabItem;
+                if (currentTab?.Content is ChromiumWebBrowser browser)
+                {
+                    browser.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug($"[隐藏搜索栏错误] {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 搜索栏关闭请求事件处理
+        /// </summary>
+        private void PageSearchBar_CloseRequested(object sender, EventArgs e)
+        {
+            HideSearchBar();
+        }
+
+        ///// <summary>
+        ///// 主窗口大小变化事件处理
+        ///// </summary>
+        //private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+        //{
+        //    try
+        //    {
+        //        // 遍历所有打开的浏览器标签页并强制更新布局
+        //        foreach (TabItem tabItem in MainTabControl.Items)
+        //        {
+        //            if (tabItem.Content is ChromiumWebBrowser browser)
+        //            {
+        //                // 强制更新浏览器布局
+        //                browser.UpdateLayout();
+                        
+        //                // 通过JavaScript触发resize事件，确保网页内容正确调整
+        //                if (browser.IsBrowserInitialized)
+        //                {
+        //                    browser.ExecuteScriptAsync("window.dispatchEvent(new Event('resize'));");
+        //                }
+        //            }
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.Debug($"[窗口大小变化处理错误] {ex.Message}");
+        //    }
+        //}
+
+        #endregion
     }
 }

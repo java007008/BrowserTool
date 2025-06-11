@@ -664,6 +664,7 @@
             <Grid Grid.Column="2" Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <!-- 地址栏区域（包含导航按钮、URL输入框、跳转按钮） -->
@@ -704,10 +705,23 @@
                         <TextBlock Text="&#xE122;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#FFFFFF"/>
                     </Button>
                 </Grid>
+                
+                <!-- 搜索栏区域 -->
+                <Grid Grid.Row="1" Margin="0" Panel.ZIndex="100">
+                    <controls:SearchBar x:Name="PageSearchBar" 
+                                      Visibility="Collapsed"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Top"
+                                      Margin="0,5,20,0"
+                                      Width="350"
+                                      CloseRequested="PageSearchBar_CloseRequested"/>
+                </Grid>
+                
                 <!-- 主TabControl控件，显示各个网页内容 -->
-                <TabControl x:Name="MainTabControl" Grid.Row="1"
+                <TabControl x:Name="MainTabControl" Grid.Row="2"
                             BorderThickness="1,0,0,0" BorderBrush="#3c3c3c"
-                            MouseRightButtonDown="MainTabControl_MouseRightButtonDown">
+                            MouseRightButtonDown="MainTabControl_MouseRightButtonDown"
+                            SelectionChanged="MainTabControl_SelectionChanged">
                     <TabControl.Style>
                         <Style TargetType="TabControl">
                             <Setter Property="Template">
