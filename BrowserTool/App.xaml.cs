@@ -36,7 +36,8 @@ namespace BrowserTool
         private static Mutex mutex = new Mutex(true, "BrowserTool_SingleInstance");
         private static bool mutexOwned = false; // 跟踪是否拥有Mutex
         private Thread pipeServerThread; // 命名管道服务器线程
-        
+        private static AutoCheckInSimulator _checkInSimulator;
+
         [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
@@ -66,6 +67,7 @@ namespace BrowserTool
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            _checkInSimulator = new AutoCheckInSimulator();
 
             try
             {
@@ -195,6 +197,7 @@ namespace BrowserTool
 
         private void TrayMenu_Exit_Click(object sender, RoutedEventArgs e)
         {
+           
             Shutdown();
         }
 
@@ -244,6 +247,8 @@ namespace BrowserTool
 
         protected override void OnExit(ExitEventArgs e)
         {
+            _checkInSimulator?.Stop();
+
             if (mutexOwned)
             {
                 mutex.ReleaseMutex();
@@ -281,7 +286,9 @@ namespace BrowserTool
             
             base.OnExit(e);
         }
-        
+
+        public static AutoCheckInSimulator CheckInSimulator => _checkInSimulator;
+
         /// <summary>
         /// 初始化CEF浏览器引擎
         /// </summary>

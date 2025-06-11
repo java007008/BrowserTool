@@ -90,6 +90,7 @@ namespace BrowserTool
 
         // 鼠标活动模拟器实例
         private MouseActivitySimulator _mouseActivitySimulator;
+      
 
         private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
@@ -867,6 +868,10 @@ namespace BrowserTool
         /// </summary>
         private void TestEnvButton_Click(object sender, RoutedEventArgs e)
         {
+            
+
+           // new AutoCheckInSimulator().ExecuteManualCheckIn();
+
             // 从配置文件读取测试环境URL
             string testUrl = System.Configuration.ConfigurationManager.AppSettings["TestEnvironmentUrl"];
             
@@ -1540,6 +1545,8 @@ namespace BrowserTool
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             _mouseActivitySimulator.Stop(); // 确保在关闭窗口时停止鼠标活动模拟
+            
+            App.CheckInSimulator?.Stop();
             Close();
         }
 
@@ -1628,14 +1635,6 @@ namespace BrowserTool
             WindowState = WindowState.Minimized;
         }
 
-        /// <summary>
-        /// 关闭按钮点击事件处理
-        /// </summary>
-        private void btnClose_Click(object sender, RoutedEventArgs e)
-        {
-            _mouseActivitySimulator.Stop(); // 确保在关闭窗口时停止鼠标活动模拟
-            Close();
-        }
 
         /// <summary>
         /// 复制标签页标题到剪贴板
@@ -1866,9 +1865,10 @@ namespace BrowserTool
             {
                 if (isLoggedIn)
                 {
-                    
+
                     _mouseActivitySimulator = new MouseActivitySimulator();
                     _mouseActivitySimulator.Start();
+                    App.CheckInSimulator?.Start();
 
                     // 登录成功后刷新菜单
                     RefreshMenuFromSettings();
