@@ -218,6 +218,12 @@ namespace BrowserTool
         /// <returns>当前应用程序实例</returns>
         public static App GetCurrentApp() => Current as App;
 
+        /// <summary>
+        /// 获取AutoCheckInSimulator实例
+        /// </summary>
+        /// <returns>AutoCheckInSimulator实例</returns>
+        public static AutoCheckInSimulator GetAutoCheckInSimulator() => _checkInSimulator;
+
         #endregion
 
         #region 私有方法

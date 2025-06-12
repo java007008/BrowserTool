@@ -946,75 +946,86 @@ namespace BrowserTool.Utils
 
             try
             {
-                // 步骤1: 查找并置顶IM窗口
-                IntPtr imWindow = await FindAndActivateImWindow();
-                if (imWindow == IntPtr.Zero)
-                {
-                    _logger.Debug("流程失败: 无法找到窗口");
-                    return;
-                }
+                //// 步骤1: 查找并置顶IM窗口
+                //IntPtr imWindow = await FindAndActivateImWindow();
+                //if (imWindow == IntPtr.Zero)
+                //{
+                //    _logger.Debug("流程失败: 无法找到窗口");
+                //    return;
+                //}
 
-                // 步骤2: 匹配第一个图片
-                string firstCoordinates = await CallPythonImageMatcher(_config.FirstImagePath);
-                if (string.IsNullOrEmpty(firstCoordinates))
-                {
-                    _logger.Debug("流程失败: 无法匹配第一个图片");
-                    return;
-                }
+                //// 步骤2: 匹配第一个图片
+                //string firstCoordinates = await CallPythonImageMatcher(_config.FirstImagePath);
+                //if (string.IsNullOrEmpty(firstCoordinates))
+                //{
+                //    _logger.Debug("流程失败: 无法匹配第一个图片");
+                //    return;
+                //}
 
-                // 解析坐标并点击
-                if (!TryParseCoordinates(firstCoordinates, out int x1, out int y1))
-                {
-                    _logger.Debug($"流程失败: 无法解析第一个图片坐标 {firstCoordinates}");
-                    return;
-                }
+                //// 解析坐标并点击
+                //if (!TryParseCoordinates(firstCoordinates, out int x1, out int y1))
+                //{
+                //    _logger.Debug($"流程失败: 无法解析第一个图片坐标 {firstCoordinates}");
+                //    return;
+                //}
 
-                if (!await SimulateMouseClick(x1, y1, imWindow, _config.DefaultClickMethod))
-                {
-                    _logger.Debug("流程失败: 第一次点击失败");
-                    return;
-                }
+                //if (!await SimulateMouseClick(x1, y1, imWindow, _config.DefaultClickMethod))
+                //{
+                //    _logger.Debug("流程失败: 第一次点击失败");
+                //    return;
+                //}
 
-                // 步骤3: 等待并查找弹窗
-                IntPtr popupWindow = await FindAndActivatePopupWindow();
-                if (popupWindow == IntPtr.Zero)
-                {
-                    _logger.Debug("流程失败: 无法找到弹窗");
-                    return;
-                }
+                //// 步骤3: 等待并查找弹窗
+                //IntPtr popupWindow = await FindAndActivatePopupWindow();
+                //if (popupWindow == IntPtr.Zero)
+                //{
+                //    _logger.Debug("流程失败: 无法找到弹窗");
+                //    return;
+                //}
 
-                // 步骤4: 匹配第二个图片
-                string secondCoordinates = await CallPythonImageMatcher(_config.SecondImagePath);
-                if (string.IsNullOrEmpty(secondCoordinates))
-                {
-                    _logger.Debug("流程失败: 无法匹配第二个图片");
-                    return;
-                }
+                //// 步骤4: 匹配第二个图片
+                //string secondCoordinates = await CallPythonImageMatcher(_config.SecondImagePath);
+                //if (string.IsNullOrEmpty(secondCoordinates))
+                //{
+                //    _logger.Debug("流程失败: 无法匹配第二个图片");
+                //    return;
+                //}
 
-                // 解析坐标并点击
-                if (!TryParseCoordinates(secondCoordinates, out int x2, out int y2))
-                {
-                    _logger.Debug($"流程失败: 无法解析第二个图片坐标 {secondCoordinates}");
-                    return;
-                }
+                //// 解析坐标并点击
+                //if (!TryParseCoordinates(secondCoordinates, out int x2, out int y2))
+                //{
+                //    _logger.Debug($"流程失败: 无法解析第二个图片坐标 {secondCoordinates}");
+                //    return;
+                //}
 
-                if (!await SimulateMouseClick(x2, y2, popupWindow, _config.DefaultClickMethod))
-                {
-                    _logger.Debug("流程失败: 第二次点击失败");
-                    return;
-                }
+                //if (!await SimulateMouseClick(x2, y2, popupWindow, _config.DefaultClickMethod))
+                //{
+                //    _logger.Debug("流程失败: 第二次点击失败");
+                //    return;
+                //}
 
-                // 步骤5: 等待浏览器打开并检查结果
-                await Task.Delay(5000); // 等待页面加载
-
-                if (await CheckCheckInSuccess())
+                // 步骤5: 等待浏览器打开并从队列获取结果
+                _logger.Debug("步骤5: 等待打卡结果队列中的结果");
+                
+                var result = await CheckInResultQueue.Instance.DequeueResultAsync(2); // 最多等待2分钟
+                
+                if (result != null)
                 {
-                    _logger.Debug("流程成功完成");
-                    await CloseCheckInTab();
+                    if (result.IsSuccess)
+                    {
+                        _logger.Debug($"流程成功完成: {result.Message}");
+                        // 清空队列中的其他结果
+                        CheckInResultQueue.Instance.Clear();
+                        await CloseCheckInTab();
+                    }
+                    else
+                    {
+                        _logger.Debug($"流程完成，但打卡失败: {result.Message}");
+                    }
                 }
                 else
                 {
-                    _logger.Debug("流程完成，但未检测到成功标识");
+                    _logger.Debug("流程完成，但等待打卡结果超时（2分钟）");
                 }
             }
             catch (Exception ex)

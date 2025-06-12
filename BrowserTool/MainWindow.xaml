@@ -530,6 +530,38 @@
                         </Style>
                     </Button.Style>
                 </Button>
+                <!-- 手动打卡按钮 -->
+                <Button x:Name="ManualCheckInButton" Width="40" Height="40" Margin="0,0,8,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Cursor="Hand" Click="ManualCheckInButton_Click" ToolTip="手动打卡">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Grid>
+                                            <Border x:Name="BackgroundBorder" Background="Transparent"/>
+                                            <Viewbox Width="20" Height="20" Stretch="Uniform">
+                                                <Canvas Width="24" Height="24">
+                                                    <!-- 时钟图标 -->
+                                                    <Ellipse Fill="Transparent" Stroke="#AAA" StrokeThickness="1.5" Canvas.Left="2" Canvas.Top="2" Width="20" Height="20"/>
+                                                    <!-- 时钟指针 -->
+                                                    <Path Stroke="#AAA" StrokeThickness="1.5" Data="M12,6 L12,12 L16,16"/>
+                                                    <!-- 勾号 -->
+                                                    <Path Stroke="#4CAF50" StrokeThickness="2" Data="M8,14 L10,16 L16,10"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BackgroundBorder" Property="Background" Value="#555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
 
             </StackPanel>
             <!-- 右上角窗口控制按钮区域（测试环境、最小化、最大化、关闭） -->

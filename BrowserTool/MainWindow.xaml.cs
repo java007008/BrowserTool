@@ -148,6 +148,8 @@ public partial class MainWindow : Window
         public event PropertyChangedEventHandler? PropertyChanged;
     }
 
+
+
     #endregion
 
     #region 字段和属性
@@ -186,6 +188,11 @@ public partial class MainWindow : Window
     /// 获取抽屉是否打开状态
     /// </summary>
     public bool IsDrawerOpen => _isDrawerOpen;
+
+    /// <summary>
+    /// 打卡页面域名列表（写死的成员变量）
+    /// </summary>
+    private readonly string[] _checkInDomains = { "attendance.company.com", "checkin.office.com", "www.google.com" };
 
     #endregion
 
@@ -956,6 +963,16 @@ public partial class MainWindow : Window
                     browserContext.IsLoading = args.IsLoading;
                 }
             }, DispatcherPriority.Background);
+            
+            // 页面加载完成后检查是否为打卡页面
+            if (!args.IsLoading)
+            {
+                Task.Run(async () =>
+                {
+                    await Task.Delay(2000); // 等待页面稳定
+                    await CheckAndEnqueueCheckInResult(browser);
+                });
+            }
         };
 
         browser.LoadingStateChanged += loadingStateChangedHandler;
@@ -1312,6 +1329,24 @@ public partial class MainWindow : Window
         {
             MessageBox.Show("测试环境URL未配置，请在App.config中设置TestEnvironmentUrl", "配置错误",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// 手动打卡按钮点击事件处理器
+    /// </summary>
+    private async void ManualCheckInButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _logger.Debug("手动打卡按钮被点击");
+
+           await App.GetAutoCheckInSimulator().ExecuteManualCheckIn();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("手动打卡时发生异常", ex);
+            MessageBox.Show($"手动打卡失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -2102,4 +2137,258 @@ public partial class MainWindow : Window
     }
 
     #endregion
+
+    #region 自动打卡相关
+
+    /// <summary>
+    /// 检查页面并将打卡结果加入队列
+    /// </summary>
+    /// <param name="browser">浏览器控件</param>
+    private async Task CheckAndEnqueueCheckInResult(ChromiumWebBrowser browser)
+    {
+        try
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                string currentUrl = browser.Address ?? "";
+                _logger.Debug($"检查页面打卡结果: {currentUrl}");
+
+                // 检查域名是否为打卡相关域名
+                bool isDomainMatch = _checkInDomains.Any(domain => currentUrl.Contains(domain));
+                if (!isDomainMatch)
+                {
+                    _logger.Debug($"当前域名不在打卡域名列表中: {currentUrl}");
+                    return;
+                }
+
+                _logger.Debug("域名匹配，开始检查页面内容");
+
+                // 等待页面稳定（给页面一些时间完成加载和渲染）
+                await Task.Delay(2000);
+
+                // 再次检查浏览器状态
+                if (browser.IsDisposed)
+                {
+                    _logger.Debug("浏览器已被释放，跳过检查");
+                    return;
+                }
+
+                // 检查页面内容是否包含成功标识
+                bool hasSuccessContent = await CheckPageContentForSuccess(browser);
+
+                // 创建检查结果并加入队列
+                var result = new CheckInResult
+                {
+                    IsSuccess = hasSuccessContent,
+                    Url = currentUrl,
+                    CheckTime = DateTime.Now,
+                    Message = hasSuccessContent ? "检测到打卡成功" : "未检测到打卡成功标识"
+                };
+
+                CheckInResultQueue.Instance.EnqueueResult(result);
+                _logger.Debug($"打卡结果已加入队列: 成功={hasSuccessContent}, URL={currentUrl}");
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("检查并入队打卡结果时发生异常", ex);
+        }
+    }
+
+    /// <summary>
+    /// 检查页面内容是否包含成功标识
+    /// </summary>
+    /// <param name="browser">浏览器控件</param>
+    /// <returns>是否包含成功标识</returns>
+    private async Task<bool> CheckPageContentForSuccess(ChromiumWebBrowser browser)
+    {
+        try
+        {
+            // 首先使用简单的方法检查URL和基本信息
+            string url = browser.Address ?? "";
+            _logger.Debug($"当前页面URL: {url}");
+
+            //// 先检查URL是否包含成功标识（最快的方法）
+            //if (CheckUrlForSuccess(url))
+            //{
+            //    _logger.Debug("URL包含成功标识，直接返回成功");
+            //    return true;
+            //}
+
+            // 检查浏览器状态
+            if (browser.IsDisposed)
+            {
+                _logger.Debug("浏览器已被释放，使用URL判断");
+                return CheckUrlForSuccess(url);
+            }
+
+            var cefBrowser = browser.GetBrowser();
+            if (cefBrowser == null || cefBrowser.IsDisposed)
+            {
+                _logger.Debug("CEF浏览器实例无效，使用URL判断");
+                return CheckUrlForSuccess(url);
+            }
+
+            // 检查浏览器是否正在加载
+            if (browser.IsLoading)
+            {
+                _logger.Debug("浏览器正在加载，等待加载完成...");
+                // 等待最多3秒让页面加载完成
+                int waitCount = 0;
+                while (browser.IsLoading && waitCount < 6)
+                {
+                    await Task.Delay(500);
+                    waitCount++;
+                }
+                
+                if (browser.IsLoading)
+                {
+                    _logger.Debug("页面仍在加载，使用URL判断");
+                    return CheckUrlForSuccess(url);
+                }
+            }
+
+            _logger.Debug($"浏览器状态检查通过，BrowserId: {cefBrowser.Identifier}");
+
+            // 使用多种方法获取页面内容
+            string bodyText = "";
+            string titleText = "";
+
+            // 方法1: 尝试使用扩展方法（减少超时时间到5秒）
+            try
+            {
+                _logger.Debug("开始使用扩展方法获取页面内容...");
+
+                var sourceTask = browser.GetSourceAsync();
+                var textTask = browser.GetTextAsync();
+
+                // 减少超时时间到5秒
+                var timeoutTask = Task.Delay(5000);
+                var completedTask = await Task.WhenAny(
+                    Task.WhenAll(sourceTask, textTask),
+                    timeoutTask
+                );
+
+                if (completedTask != timeoutTask)
+                {
+                    var source = await sourceTask;
+                    var text = await textTask;
+
+                    // 从HTML源码中提取标题
+                    var titleMatch = System.Text.RegularExpressions.Regex.Match(source, @"<title[^>]*>([^<]*)</title>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    titleText = titleMatch.Success ? titleMatch.Groups[1].Value.Trim() : "";
+
+                    // 使用页面文本内容，限制长度
+                    bodyText = text.Length > 1000 ? text.Substring(0, 1000) : text;
+
+                    _logger.Debug($"扩展方法获取成功 - 标题: {titleText}, 内容长度: {bodyText.Length}");
+                }
+                else
+                {
+                    _logger.Debug("扩展方法获取超时，尝试备用方法");
+                    // 继续尝试其他方法
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"扩展方法获取时发生异常: {ex.Message}");
+                // 继续尝试其他方法
+            }
+
+            // 方法2: 如果扩展方法失败，尝试获取页面标题
+            if (string.IsNullOrEmpty(titleText))
+            {
+                try
+                {
+                    _logger.Debug("尝试直接获取页面标题...");
+                    var mainFrame = cefBrowser.MainFrame;
+                    if (mainFrame != null && !mainFrame.IsDisposed)
+                    {
+                        // 使用主框架的URL作为备用
+                        var frameUrl = mainFrame.Url ?? "";
+                        if (!string.IsNullOrEmpty(frameUrl) && frameUrl != url)
+                        {
+                            _logger.Debug($"使用主框架URL: {frameUrl}");
+                            if (CheckUrlForSuccess(frameUrl))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"获取主框架信息时发生异常: {ex.Message}");
+                }
+            }
+
+            // 方法3: 检查浏览器标题（如果可用）
+            if (string.IsNullOrEmpty(titleText))
+            {
+                try
+                {
+                    // 尝试从浏览器获取标题
+                    var browserHost = cefBrowser.GetHost();
+                    if (browserHost != null && !browserHost.IsDisposed)
+                    {
+                        // 这里可以添加更多的检查逻辑
+                        _logger.Debug("浏览器主机可用，但无法获取内容");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"获取浏览器主机信息时发生异常: {ex.Message}");
+                }
+            }
+
+            // 如果所有方法都失败，使用URL判断
+            if (string.IsNullOrEmpty(titleText) && string.IsNullOrEmpty(bodyText))
+            {
+                _logger.Debug("所有内容获取方法都失败，使用URL判断");
+                return CheckUrlForSuccess(url);
+            }
+
+            // 检查是否包含打卡成功的关键字
+            string[] successKeywords = { "打卡成功", "签到成功", "考勤成功", "上班打卡成功", "下班打卡成功", "check-in successful", "attendance successful", "签到完成", "打卡完成", "google" };
+            
+            bool hasSuccessKeyword = successKeywords.Any(keyword => 
+                bodyText.Contains(keyword, StringComparison.OrdinalIgnoreCase) || 
+                titleText.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                url.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+
+            if (hasSuccessKeyword)
+            {
+                _logger.Debug("页面包含成功标识");
+                return true;
+            }
+
+            _logger.Debug("页面不包含成功标识");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("检查页面内容时发生异常", ex);
+            return CheckUrlForSuccess(browser.Address ?? "");
+        }
+    }
+
+    /// <summary>
+    /// 基于URL检查是否成功（备用方法）
+    /// </summary>
+    /// <param name="url">页面URL</param>
+    /// <returns>是否包含成功标识</returns>
+    private bool CheckUrlForSuccess(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+            return false;
+
+        string[] urlSuccessKeywords = { "success", "complete", "done", "成功", "完成", "google" };
+        bool hasSuccessInUrl = urlSuccessKeywords.Any(keyword => url.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        
+        _logger.Debug($"URL成功检查结果: {hasSuccessInUrl} (URL: {url})");
+        return hasSuccessInUrl;
+    }
+
+    #endregion
 }
+
