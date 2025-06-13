@@ -318,7 +318,7 @@ namespace BrowserTool.Utils
         private const ushort VK_W = 0x57;
 
         /// <summary>默认IM窗口标题关键字</summary>
-        private const string DEFAULT_IM_WINDOW_TITLE = "新建文本文档";
+        private const string DEFAULT_IM_WINDOW_TITLE = "Talk";
         /// <summary>默认弹窗标题关键字</summary>
         private const string DEFAULT_POPUP_WINDOW_TITLE = "考勤";
 
@@ -1163,7 +1163,7 @@ namespace BrowserTool.Utils
                 }
 
                 // 步骤3: 等待并查找弹窗
-                IntPtr popupWindow = await FindAndActivatePopupWindow();
+                IntPtr popupWindow = await windowFinder.FindAndActivateImWindowEnhanced(DEFAULT_POPUP_WINDOW_TITLE);
                 if (popupWindow == IntPtr.Zero)
                 {
                     return CheckInStepResult.Failure(3, "无法找到弹窗");
