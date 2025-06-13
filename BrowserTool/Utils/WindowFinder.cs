@@ -52,6 +52,19 @@ namespace BrowserTool.Utils
         [DllImport("user32.dll")]
         static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
+        [DllImport("user32.dll")]
+        static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        // SetWindowPos 常量
+        static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);      // 置顶
+        static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);    // 取消置顶
+        static readonly IntPtr HWND_TOP = new IntPtr(0);           // 置前
+
+        // SetWindowPos 标志
+        const uint SWP_NOMOVE = 0x0002;        // 不移动位置
+        const uint SWP_NOSIZE = 0x0001;        // 不改变大小
+        const uint SWP_SHOWWINDOW = 0x0040;    // 显示窗口
+
         // 窗口显示状态常量
         const int SW_RESTORE = 9;
         const int SW_SHOW = 5;
@@ -214,6 +227,10 @@ namespace BrowserTool.Utils
                 // 置前台
                 SetForegroundWindow(hWnd);
                 Log("窗口已激活");
+
+                Log("设置窗口置顶...");
+                SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             }
             catch (Exception ex)
             {
