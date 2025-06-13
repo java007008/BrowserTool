@@ -8,6 +8,7 @@ using System.IO;
 using System.Configuration;
 using System.Linq;
 using NLog;
+using System.Collections.Generic;
 
 namespace BrowserTool.Utils 
 {
@@ -68,6 +69,11 @@ namespace BrowserTool.Utils
         /// <returns>复制的字符数</returns>
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        // 委托定义
+        public delegate bool EnumWindowsDelegate(IntPtr hWnd, IntPtr lParam);
+        [DllImport("user32.dll")]
+        static extern bool EnumThreadWindows(int dwThreadId, EnumWindowsDelegate lpfn, IntPtr lParam);
 
         /// <summary>
         /// 模拟鼠标点击事件
@@ -328,6 +334,7 @@ namespace BrowserTool.Utils
         private Random _random;
         /// <summary>日志文件路径</summary>
         private string _logFilePath;
+        private readonly List<string> _checkInDomains;
 
         #endregion
 
@@ -377,6 +384,21 @@ namespace BrowserTool.Utils
         /// </summary>
         public AutoCheckInSimulator()
         {
+            _logger = LogManager.GetCurrentClassLogger();
+            _checkInDomains = ConfigurationManager.AppSettings["CheckInDomains"]?
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(d => d.Trim())
+                .ToList() ?? new List<string>();
+            
+            if (_checkInDomains.Count == 0)
+            {
+                _logger.Warn("未配置需要匹配的域名，请在App.config中设置CheckInDomains");
+            }
+            else
+            {
+                _logger.Info($"已加载{_checkInDomains.Count}个需要匹配的域名: {string.Join(", ", _checkInDomains)}");
+            }
+
             _random = new Random();
             LoadConfiguration();
         }
@@ -503,48 +525,112 @@ namespace BrowserTool.Utils
         /// 查找并置顶IM窗口
         /// </summary>
         /// <returns>窗口句柄，找不到返回IntPtr.Zero</returns>
+        //private async Task<IntPtr> FindAndActivateImWindow()
+        //{
+        //    _logger.Debug($"开始查找窗口: {_config.ImWindowTitle}");
+
+        //    // 查找包含指定标题的窗口
+        //    IntPtr windowHandle = IntPtr.Zero;
+
+        //    // 枚举所有窗口查找匹配的窗口
+        //    Process[] processes = Process.GetProcesses();
+        //    foreach (Process process in processes)
+        //    {
+        //        if (process.MainWindowHandle != IntPtr.Zero)
+        //        {
+        //            StringBuilder windowTitle = new StringBuilder(256);
+        //            GetWindowText(process.MainWindowHandle, windowTitle, 256);
+
+        //            if (windowTitle.ToString().Contains(_config.ImWindowTitle))
+        //            {
+        //                windowHandle = process.MainWindowHandle;
+        //                _logger.Debug($"找到IM窗口: {windowTitle} (句柄: {windowHandle})");
+        //                break;
+        //            }
+        //        }
+        //    }
+
+        //    if (windowHandle == IntPtr.Zero)
+        //    {
+        //        _logger.Debug("未找到IM窗口");
+        //        return IntPtr.Zero;
+        //    }
+
+        //    // 置顶窗口
+        //    if (!SetForegroundWindow(windowHandle))
+        //    {
+        //        _logger.Debug("置顶IM窗口失败");
+        //        return IntPtr.Zero;
+        //    }
+
+        //    ShowWindow(windowHandle, SW_SHOWNORMAL);
+        //    await Task.Delay(1000); // 等待窗口激活
+
+        //    _logger.Debug("IM窗口置顶成功");
+        //    return windowHandle;
+        //}
         private async Task<IntPtr> FindAndActivateImWindow()
         {
-            _logger.Debug($"开始查找窗口: {_config.ImWindowTitle}");
+            _logger.Debug($"开始查找窗口: 【{config.ImWindowTitle}】");
 
-            // 查找包含指定标题的窗口
             IntPtr windowHandle = IntPtr.Zero;
 
-            // 枚举所有窗口查找匹配的窗口
+            // 查找包含指定标题的窗口
             Process[] processes = Process.GetProcesses();
             foreach (Process process in processes)
             {
-                if (process.MainWindowHandle != IntPtr.Zero)
+                try
                 {
-                    StringBuilder windowTitle = new StringBuilder(256);
-                    GetWindowText(process.MainWindowHandle, windowTitle, 256);
-
-                    if (windowTitle.ToString().Contains(_config.ImWindowTitle))
+                    // 检查主窗口
+                    if (process.MainWindowHandle != IntPtr.Zero)
                     {
-                        windowHandle = process.MainWindowHandle;
-                        _logger.Debug($"找到IM窗口: {windowTitle} (句柄: {windowHandle})");
-                        break;
+                        StringBuilder windowTitle = new StringBuilder(256);
+                        GetWindowText(process.MainWindowHandle, windowTitle, 256);
+
+                        if (windowTitle.ToString().Contains(config.ImWindowTitle))
+                        {
+                            windowHandle = process.MainWindowHandle;
+                            _logger.Debug($"找到目标窗口: {windowTitle} (句柄: {windowHandle})");
+                            break;
+                        }
                     }
+
+                    // 如果主窗口没找到，遍历该进程的所有窗口
+                    if (windowHandle == IntPtr.Zero)
+                    {
+                        EnumThreadWindows(process.Id, (hWnd, lParam) =>
+                        {
+                            if (IsWindowVisible(hWnd))
+                            {
+                                StringBuilder title = new StringBuilder(256);
+                                GetWindowText(hWnd, title, 256);
+
+                                if (title.ToString().Contains(config.ImWindowTitle))
+                                {
+                                    windowHandle = hWnd;
+                                    _logger.Debug($"在进程 {process.ProcessName} 中找到窗口: {title}");
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }, IntPtr.Zero);
+
+                        if (windowHandle != IntPtr.Zero) break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 忽略无法访问的进程
                 }
             }
 
             if (windowHandle == IntPtr.Zero)
             {
-                _logger.Debug("未找到IM窗口");
+                _logger.Debug("未找到目标窗口");
                 return IntPtr.Zero;
             }
 
-            // 置顶窗口
-            if (!SetForegroundWindow(windowHandle))
-            {
-                _logger.Debug("置顶IM窗口失败");
-                return IntPtr.Zero;
-            }
-
-            ShowWindow(windowHandle, SW_SHOWNORMAL);
-            await Task.Delay(1000); // 等待窗口激活
-
-            _logger.Debug("IM窗口置顶成功");
+            SetForegroundWindow(windowHandle);
             return windowHandle;
         }
 
