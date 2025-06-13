@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Configuration;
+using NLog;
 
 namespace BrowserTool.Utils
 {
@@ -12,6 +13,8 @@ namespace BrowserTool.Utils
     /// </summary>
     public class MouseActivitySimulator
     {
+        private static readonly ILogger _logger = LogManager.GetCurrentClassLogger();
+
         #region Win32 API 声明
 
         /// <summary>
@@ -141,7 +144,13 @@ namespace BrowserTool.Utils
             _screenWidth = GetSystemMetrics(SM_CXSCREEN);
             _screenHeight = GetSystemMetrics(SM_CYSCREEN);
             
-            System.Diagnostics.Debug.WriteLine($"屏幕尺寸: {_screenWidth} x {_screenHeight}");
+            _logger.Debug($"屏幕尺寸: {_screenWidth} x {_screenHeight}");
+            _logger.Info("MouseActivitySimulator初始化完成");
+            _logger.Warn("测试警告消息");
+            _logger.Error("测试错误消息");
+            
+            // 确保日志被刷新
+            LogManager.Flush();
         }
 
         #endregion
@@ -186,11 +195,11 @@ namespace BrowserTool.Utils
                 POINT currentPos;
                 if (!GetCursorPos(out currentPos))
                 {
-                    System.Diagnostics.Debug.WriteLine("无法获取当前鼠标位置");
+                    _logger.Error("无法获取当前鼠标位置");
                     return;
                 }
 
-                System.Diagnostics.Debug.WriteLine($"当前鼠标位置: ({currentPos.X}, {currentPos.Y})");
+                _logger.Debug($"当前鼠标位置: ({currentPos.X}, {currentPos.Y})");
 
                 // 计算移动后的X坐标
                 int newX = currentPos.X + (_currentDirection * _moveStep);
@@ -216,7 +225,7 @@ namespace BrowserTool.Utils
                 if (needChangeDirection)
                 {
                     _currentDirection *= -1;
-                    System.Diagnostics.Debug.WriteLine($"改变移动方向: {directionChangeReason}，新方向: {(_currentDirection > 0 ? "向右" : "向左")}");
+                    _logger.Debug($"改变移动方向: {directionChangeReason}，新方向: {(_currentDirection > 0 ? "向右" : "向左")}");
                     
                     // 重新计算移动后的坐标
                     newX = currentPos.X + (_currentDirection * _moveStep);
@@ -229,24 +238,32 @@ namespace BrowserTool.Utils
                 int deltaX = newX - currentPos.X;
                 int deltaY = 0; // 只进行水平移动
 
-                System.Diagnostics.Debug.WriteLine($"执行鼠标移动: 当前方向={(_currentDirection > 0 ? "向右" : "向左")}, " +
-                                                 $"移动距离=({deltaX}, {deltaY}), " +
-                                                 $"目标位置=({newX}, {currentPos.Y})");
+                _logger.Debug($"执行鼠标移动: 当前方向={(_currentDirection > 0 ? "向右" : "向左")}, " +
+                            $"移动距离=({deltaX}, {deltaY}), " +
+                            $"目标位置=({newX}, {currentPos.Y})");
 
                 // 执行鼠标移动
                 if (deltaX != 0)
                 {
+                    // 先移动到新位置
                     mouse_event(MOUSEEVENTF_MOVE, deltaX, deltaY, 0, 0);
-                    System.Diagnostics.Debug.WriteLine($"鼠标移动完成: 从({currentPos.X}, {currentPos.Y}) 到 ({newX}, {currentPos.Y})");
+                    _logger.Debug($"鼠标移动完成: 从({currentPos.X}, {currentPos.Y}) 到 ({newX}, {currentPos.Y})");
+                    
+                    // 等待一小段时间
+                    Thread.Sleep(100);
+                    
+                    // 再移回原位
+                    mouse_event(MOUSEEVENTF_MOVE, -deltaX, -deltaY, 0, 0);
+                    _logger.Debug($"鼠标回到原位: 从({newX}, {currentPos.Y}) 到 ({currentPos.X}, {currentPos.Y})");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("无需移动鼠标（移动距离为0）");
+                    _logger.Debug("无需移动鼠标（移动距离为0）");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"执行鼠标移动时发生异常: {ex.Message}");
+                _logger.Error(ex, "执行鼠标移动时发生异常");
             }
         }
 
@@ -260,51 +277,35 @@ namespace BrowserTool.Utils
         /// </summary>
         public void Start()
         {
+            if (_isRunning)
+            {
+                _logger.Warn("鼠标活动模拟器已经在运行中");
+                return;
+            }
+
             try
             {
-                // 从配置文件读取是否启用模拟功能
-                bool enableSimulation = true; // 默认启用
-                if (ConfigurationManager.AppSettings["EnableMouseActivitySimulation"] != null)
-                {
-                    bool.TryParse(ConfigurationManager.AppSettings["EnableMouseActivitySimulation"], out enableSimulation);
-                }
-
-                if (!enableSimulation)
-                {
-                    System.Diagnostics.Debug.WriteLine("鼠标活动模拟功能已在配置中禁用");
-                    return; // 如果配置为禁用，则不启动模拟
-                }
-
-                // 从配置文件读取检测间隔时间
+                // 从配置文件读取设置
                 if (ConfigurationManager.AppSettings["MouseActivityInterval"] != null)
                 {
-                    if (int.TryParse(ConfigurationManager.AppSettings["MouseActivityInterval"], out int configInterval))
+                    if (int.TryParse(ConfigurationManager.AppSettings["MouseActivityInterval"], out int interval))
                     {
-                        _interval = configInterval;
-                        System.Diagnostics.Debug.WriteLine($"从配置文件读取检测间隔: {_interval}ms");
+                        _interval = interval;
                     }
                 }
 
-                // 从配置文件读取移动步长
                 if (ConfigurationManager.AppSettings["MouseMoveStep"] != null)
                 {
-                    if (int.TryParse(ConfigurationManager.AppSettings["MouseMoveStep"], out int configStep))
+                    if (int.TryParse(ConfigurationManager.AppSettings["MouseMoveStep"], out int moveStep))
                     {
-                        _moveStep = configStep;
-                        System.Diagnostics.Debug.WriteLine($"从配置文件读取移动步长: {_moveStep}px");
+                        _moveStep = moveStep;
                     }
-                }
-
-                if (_isRunning)
-                {
-                    System.Diagnostics.Debug.WriteLine("鼠标活动模拟器已在运行中");
-                    return;
                 }
 
                 _cancellationTokenSource = new CancellationTokenSource();
                 _isRunning = true;
 
-                System.Diagnostics.Debug.WriteLine($"启动鼠标活动模拟器 - 检测间隔: {_interval}ms, 移动步长: {_moveStep}px, 屏幕尺寸: {_screenWidth}x{_screenHeight}");
+                _logger.Info($"启动鼠标活动模拟器 - 检测间隔: {_interval}ms, 移动步长: {_moveStep}px, 屏幕尺寸: {_screenWidth}x{_screenHeight}");
 
                 // 启动后台监控任务
                 Task.Run(async () =>
@@ -319,13 +320,8 @@ namespace BrowserTool.Utils
                             // 如果空闲时间超过配置的间隔时间，执行智能鼠标移动
                             if (idleTime >= _interval)
                             {
-                                System.Diagnostics.Debug.WriteLine($"检测到系统空闲 {idleTime}ms（阈值: {_interval}ms），执行智能鼠标移动");
+                                _logger.Debug($"检测到系统空闲 {idleTime}ms（阈值: {_interval}ms），执行智能鼠标移动");
                                 PerformSmartMouseMove();
-                            }
-                            else
-                            {
-                                // 记录当前状态（用于调试，可根据需要注释掉以减少日志输出）
-                                // System.Diagnostics.Debug.WriteLine($"系统活跃中，空闲时间: {idleTime}ms，阈值: {_interval}ms");
                             }
 
                             // 每秒检查一次空闲状态
@@ -333,38 +329,22 @@ namespace BrowserTool.Utils
                         }
                         catch (OperationCanceledException)
                         {
-                            System.Diagnostics.Debug.WriteLine("鼠标活动模拟器任务被取消");
+                            _logger.Info("鼠标活动模拟器任务被取消");
                             break;
                         }
                         catch (Exception ex)
                         {
                             // 发生错误时记录日志并继续运行
-                            System.Diagnostics.Debug.WriteLine($"鼠标活动模拟器运行异常: {ex.Message}");
+                            _logger.Error(ex, "鼠标活动模拟器运行异常");
                             await Task.Delay(1000, _cancellationTokenSource.Token);
                         }
                     }
                 }, _cancellationTokenSource.Token);
-
-                System.Diagnostics.Debug.WriteLine("鼠标活动模拟器启动成功");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"启动鼠标活动模拟器失败: {ex.Message}");
-                
-                // 如果配置读取失败，使用默认值继续运行
-                if (!_isRunning)
-                {
-                    try
-                    {
-                        _cancellationTokenSource = new CancellationTokenSource();
-                        _isRunning = true;
-                        System.Diagnostics.Debug.WriteLine("使用默认配置启动鼠标活动模拟器");
-                    }
-                    catch (Exception innerEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"使用默认配置启动也失败: {innerEx.Message}");
-                    }
-                }
+                _logger.Error(ex, "启动鼠标活动模拟器时发生异常");
+                _isRunning = false;
             }
         }
 
@@ -376,7 +356,7 @@ namespace BrowserTool.Utils
         {
             if (!_isRunning)
             {
-                System.Diagnostics.Debug.WriteLine("鼠标活动模拟器未在运行");
+                _logger.Warn("鼠标活动模拟器未在运行");
                 return;
             }
 
@@ -384,11 +364,11 @@ namespace BrowserTool.Utils
             {
                 _cancellationTokenSource?.Cancel();
                 _isRunning = false;
-                System.Diagnostics.Debug.WriteLine("鼠标活动模拟器已停止");
+                _logger.Info("鼠标活动模拟器已停止");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"停止鼠标活动模拟器时发生异常: {ex.Message}");
+                _logger.Error(ex, "停止鼠标活动模拟器时发生异常");
             }
         }
 

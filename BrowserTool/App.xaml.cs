@@ -17,6 +17,8 @@ using System.Windows.Controls;
 using CefSharp.Wpf;
 using FontStyle = System.Drawing.FontStyle;
 using NLog;
+using NLog.Config;
+using NLog.Targets;
 
 namespace BrowserTool
 {
@@ -553,7 +555,6 @@ namespace BrowserTool
         private static void LogError(string message, Exception exception)
         {
             _logger.Error($"[错误] {message}:", exception);
-           
         }
 
         /// <summary>
@@ -600,9 +601,7 @@ namespace BrowserTool
             }
             catch (Exception ex)
             {
-                LogError("程序启动时发生未处理的错误", ex);
-                ShowErrorMessage($"程序启动失败：{ex.Message}");
-                Shutdown();
+                MessageBox.Show($"应用程序启动失败: {ex.Message}\n{ex.StackTrace}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

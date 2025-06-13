@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Configuration;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -256,6 +257,14 @@ public partial class MainWindow : Window
                 TabContextMenu.PlacementTarget = MainTabControl;
             }
         };
+
+        // 根据配置控制手动打卡按钮的显示
+        bool showManualCheckInButton = true;
+        if (bool.TryParse(ConfigurationManager.AppSettings["ShowManualCheckInButton"], out bool configValue))
+        {
+            showManualCheckInButton = configValue;
+        }
+        ManualCheckInButton.Visibility = showManualCheckInButton ? Visibility.Visible : Visibility.Collapsed;
     }
 
     #endregion
