@@ -202,6 +202,62 @@ namespace BrowserTool.Utils
             public IntPtr dwExtraInfo;
         }
 
+        /// <summary>
+        /// 打卡步骤执行结果
+        /// </summary>
+        private class CheckInStepResult
+        {
+            /// <summary>是否成功</summary>
+            public bool IsSuccess { get; set; }
+            /// <summary>失败步骤编号</summary>
+            public int FailedStep { get; set; }
+            /// <summary>失败原因</summary>
+            public string FailureReason { get; set; }
+            /// <summary>异常信息（如果有）</summary>
+            public Exception Exception { get; set; }
+
+            /// <summary>
+            /// 创建成功结果
+            /// </summary>
+            public static CheckInStepResult Success()
+            {
+                return new CheckInStepResult { IsSuccess = true };
+            }
+
+            /// <summary>
+            /// 创建失败结果
+            /// </summary>
+            public static CheckInStepResult Failure(int step, string reason, Exception ex = null)
+            {
+                return new CheckInStepResult
+                {
+                    IsSuccess = false,
+                    FailedStep = step,
+                    FailureReason = reason,
+                    Exception = ex
+                };
+            }
+
+            /// <summary>
+            /// 获取详细的失败信息
+            /// </summary>
+            public string GetDetailedFailureInfo()
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"步骤 {FailedStep} 失败");
+                sb.AppendLine($"原因: {FailureReason}");
+                if (Exception != null)
+                {
+                    sb.AppendLine($"异常: {Exception.Message}");
+                    if (Exception.InnerException != null)
+                    {
+                        sb.AppendLine($"内部异常: {Exception.InnerException.Message}");
+                    }
+                }
+                return sb.ToString();
+            }
+        }
+
         #endregion
 
         #region 枚举定义
@@ -804,44 +860,6 @@ namespace BrowserTool.Utils
             }
         }
 
-        ///// <summary>
-        ///// 后台点击
-        ///// </summary>
-        //private async Task<bool> PerformBackgroundClick(int x, int y, IntPtr windowHandle)
-        //{
-        //    try
-        //    {
-        //        if (windowHandle == IntPtr.Zero)
-        //            return false;
-
-        //        _logger.Debug($"执行真正的后台点击，屏幕坐标: ({x}, {y})");
-
-        //        // 将屏幕坐标转换为客户区坐标（不移动鼠标）
-        //        var clientPoint = ScreenToClient(windowHandle, x, y);
-
-        //        _logger.Debug($"转换后的客户区坐标: ({clientPoint.X}, {clientPoint.Y})");
-
-        //        // 构造lParam参数（高16位是Y坐标，低16位是X坐标）
-        //        IntPtr lParam = (IntPtr)((clientPoint.Y << 16) | (clientPoint.X & 0xFFFF));
-
-        //        // 直接发送鼠标消息到目标窗口，不移动实际鼠标
-        //        bool downResult = PostMessage(windowHandle, WM_LBUTTONDOWN, IntPtr.Zero, lParam) != IntPtr.Zero;
-        //        await Task.Delay(50);
-        //        bool upResult = PostMessage(windowHandle, WM_LBUTTONUP, IntPtr.Zero, lParam) != IntPtr.Zero;
-
-        //        await Task.Delay(100);
-
-        //        bool success = downResult && upResult;
-        //        _logger.Debug($"后台点击完成，客户区坐标: ({clientPoint.X}, {clientPoint.Y}), 成功: {success}");
-        //        return success;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.Debug($"后台点击异常: {ex.Message}");
-        //        return false;
-        //    }
-        //}
-
         /// <summary>
         /// 双击
         /// </summary>
@@ -944,93 +962,140 @@ namespace BrowserTool.Utils
         {
             _logger.Debug("开始执行流程");
 
-            try
+            int retryCount = 0;
+            const int maxRetries = 5;
+            bool success = false;
+            CheckInStepResult lastResult = null;
+
+            while (!success && retryCount < maxRetries)
             {
-                //// 步骤1: 查找并置顶IM窗口
-                //IntPtr imWindow = await FindAndActivateImWindow();
-                //if (imWindow == IntPtr.Zero)
-                //{
-                //    _logger.Debug("流程失败: 无法找到窗口");
-                //    return;
-                //}
-
-                //// 步骤2: 匹配第一个图片
-                //string firstCoordinates = await CallPythonImageMatcher(_config.FirstImagePath);
-                //if (string.IsNullOrEmpty(firstCoordinates))
-                //{
-                //    _logger.Debug("流程失败: 无法匹配第一个图片");
-                //    return;
-                //}
-
-                //// 解析坐标并点击
-                //if (!TryParseCoordinates(firstCoordinates, out int x1, out int y1))
-                //{
-                //    _logger.Debug($"流程失败: 无法解析第一个图片坐标 {firstCoordinates}");
-                //    return;
-                //}
-
-                //if (!await SimulateMouseClick(x1, y1, imWindow, _config.DefaultClickMethod))
-                //{
-                //    _logger.Debug("流程失败: 第一次点击失败");
-                //    return;
-                //}
-
-                //// 步骤3: 等待并查找弹窗
-                //IntPtr popupWindow = await FindAndActivatePopupWindow();
-                //if (popupWindow == IntPtr.Zero)
-                //{
-                //    _logger.Debug("流程失败: 无法找到弹窗");
-                //    return;
-                //}
-
-                //// 步骤4: 匹配第二个图片
-                //string secondCoordinates = await CallPythonImageMatcher(_config.SecondImagePath);
-                //if (string.IsNullOrEmpty(secondCoordinates))
-                //{
-                //    _logger.Debug("流程失败: 无法匹配第二个图片");
-                //    return;
-                //}
-
-                //// 解析坐标并点击
-                //if (!TryParseCoordinates(secondCoordinates, out int x2, out int y2))
-                //{
-                //    _logger.Debug($"流程失败: 无法解析第二个图片坐标 {secondCoordinates}");
-                //    return;
-                //}
-
-                //if (!await SimulateMouseClick(x2, y2, popupWindow, _config.DefaultClickMethod))
-                //{
-                //    _logger.Debug("流程失败: 第二次点击失败");
-                //    return;
-                //}
-
-                // 步骤5: 等待浏览器打开并从队列获取结果
-                _logger.Debug("步骤5: 等待打卡结果队列中的结果");
-                
-                var result = await CheckInResultQueue.Instance.DequeueResultAsync(2); // 最多等待2分钟
-                
-                if (result != null)
+                try
                 {
-                    if (result.IsSuccess)
+                    if (retryCount > 0)
                     {
-                        _logger.Debug($"流程成功完成: {result.Message}");
-                        // 清空队列中的其他结果
-                        CheckInResultQueue.Instance.Clear();
-                        await CloseCheckInTab();
+                        _logger.Debug($"第 {retryCount} 次重试");
+                        if (lastResult != null)
+                        {
+                            _logger.Debug($"上次失败原因:\n{lastResult.GetDetailedFailureInfo()}");
+                        }
+                        await Task.Delay(5000); // 重试前等待2秒
                     }
-                    else
+
+                    lastResult = await ExecuteCheckInSteps();
+                    success = lastResult.IsSuccess;
+                    
+                    if (!success)
                     {
-                        _logger.Debug($"流程完成，但打卡失败: {result.Message}");
+                        retryCount++;
                     }
+                }
+                catch (Exception ex)
+                {
+                    lastResult = CheckInStepResult.Failure(0, "执行流程时发生异常", ex);
+                    _logger.Debug($"执行流程时发生异常: {ex.Message}");
+                    retryCount++;
+                    continue;
+                }
+            }
+
+            if (!success)
+            {
+                _logger.Debug($"流程执行失败，已重试 {retryCount} 次");
+                if (lastResult != null)
+                {
+                    _logger.Debug($"最终失败原因:\n{lastResult.GetDetailedFailureInfo()}");
+                }
+                return;
+            }
+
+            // 步骤5: 等待浏览器打开并从队列获取结果
+            _logger.Debug("步骤5: 等待打卡结果队列中的结果");
+            
+            var result = await CheckInResultQueue.Instance.DequeueResultAsync(2); // 最多等待2分钟
+            
+            if (result != null)
+            {
+                if (result.IsSuccess)
+                {
+                    _logger.Debug($"流程成功完成: {result.Message}");
+                    // 清空队列中的其他结果
+                    CheckInResultQueue.Instance.Clear();
+                    //await CloseCheckInTab();
                 }
                 else
                 {
-                    _logger.Debug("流程完成，但等待打卡结果超时（2分钟）");
+                    _logger.Debug($"流程完成，但打卡失败: {result.Message}");
                 }
+            }
+            else
+            {
+                _logger.Debug("流程完成，但等待打卡结果超时（2分钟）");
+            }
+        }
+
+        /// <summary>
+        /// 执行打卡步骤1-4
+        /// </summary>
+        /// <returns>执行结果</returns>
+        private async Task<CheckInStepResult> ExecuteCheckInSteps()
+        {
+            try
+            {
+                // 步骤1: 查找并置顶IM窗口
+                IntPtr imWindow = await FindAndActivateImWindow();
+                if (imWindow == IntPtr.Zero)
+                {
+                    return CheckInStepResult.Failure(1, "无法找到IM窗口");
+                }
+
+                // 步骤2: 匹配第一个图片
+                string firstCoordinates = await CallPythonImageMatcher(_config.FirstImagePath);
+                if (string.IsNullOrEmpty(firstCoordinates))
+                {
+                    return CheckInStepResult.Failure(2, "无法匹配第一个图片");
+                }
+
+                // 解析坐标并点击
+                if (!TryParseCoordinates(firstCoordinates, out int x1, out int y1))
+                {
+                    return CheckInStepResult.Failure(2, $"无法解析第一个图片坐标: {firstCoordinates}");
+                }
+
+                if (!await SimulateMouseClick(x1, y1, imWindow, _config.DefaultClickMethod))
+                {
+                    return CheckInStepResult.Failure(2, "第一次点击失败");
+                }
+
+                // 步骤3: 等待并查找弹窗
+                IntPtr popupWindow = await FindAndActivatePopupWindow();
+                if (popupWindow == IntPtr.Zero)
+                {
+                    return CheckInStepResult.Failure(3, "无法找到弹窗");
+                }
+
+                // 步骤4: 匹配第二个图片
+                string secondCoordinates = await CallPythonImageMatcher(_config.SecondImagePath);
+                if (string.IsNullOrEmpty(secondCoordinates))
+                {
+                    return CheckInStepResult.Failure(4, "无法匹配第二个图片");
+                }
+
+                // 解析坐标并点击
+                if (!TryParseCoordinates(secondCoordinates, out int x2, out int y2))
+                {
+                    return CheckInStepResult.Failure(4, $"无法解析第二个图片坐标: {secondCoordinates}");
+                }
+
+                if (!await SimulateMouseClick(x2, y2, popupWindow, _config.DefaultClickMethod))
+                {
+                    return CheckInStepResult.Failure(4, "第二次点击失败");
+                }
+
+                return CheckInStepResult.Success();
             }
             catch (Exception ex)
             {
-                _logger.Debug($"执行流程时发生异常: {ex.Message}");
+                return CheckInStepResult.Failure(0, "执行过程中发生异常", ex);
             }
         }
 
