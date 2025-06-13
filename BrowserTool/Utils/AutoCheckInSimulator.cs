@@ -586,11 +586,14 @@ namespace BrowserTool.Utils
         {
             try
             {
-                _logger.Debug($"调用Python脚本匹配图片: {imagePath}");
+                string portablePythonPath = @"D:\Software\Dev\python-3.13.5-embed-amd64\python.exe";
+                string pythonExe = File.Exists(portablePythonPath) ? portablePythonPath : "py";
+
+                _logger.Debug($"调用Python脚本匹配图片: {imagePath}, pythonPath:{pythonExe}");
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
-                    FileName = "py",
+                    FileName = pythonExe,
                     Arguments = $"\"{_config.PythonScriptPath}\" \"{imagePath}\"",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
