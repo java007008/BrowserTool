@@ -146,8 +146,6 @@ namespace BrowserTool.Utils
             
             _logger.Debug($"屏幕尺寸: {_screenWidth} x {_screenHeight}");
             _logger.Info("MouseActivitySimulator初始化完成");
-            _logger.Warn("测试警告消息");
-            _logger.Error("测试错误消息");
             
             // 确保日志被刷新
             LogManager.Flush();
