@@ -74,6 +74,8 @@ namespace BrowserTool.Utils
         public delegate bool EnumWindowsDelegate(IntPtr hWnd, IntPtr lParam);
         [DllImport("user32.dll")]
         static extern bool EnumThreadWindows(int dwThreadId, EnumWindowsDelegate lpfn, IntPtr lParam);
+        [DllImport("user32.dll")]
+        static extern bool IsWindowVisible(IntPtr hWnd);
 
         /// <summary>
         /// 模拟鼠标点击事件
@@ -333,8 +335,6 @@ namespace BrowserTool.Utils
         /// <summary>随机数生成器</summary>
         private Random _random;
         /// <summary>日志文件路径</summary>
-        private string _logFilePath;
-        private readonly List<string> _checkInDomains;
 
         #endregion
 
@@ -384,21 +384,6 @@ namespace BrowserTool.Utils
         /// </summary>
         public AutoCheckInSimulator()
         {
-            _logger = LogManager.GetCurrentClassLogger();
-            _checkInDomains = ConfigurationManager.AppSettings["CheckInDomains"]?
-                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(d => d.Trim())
-                .ToList() ?? new List<string>();
-            
-            if (_checkInDomains.Count == 0)
-            {
-                _logger.Warn("未配置需要匹配的域名，请在App.config中设置CheckInDomains");
-            }
-            else
-            {
-                _logger.Info($"已加载{_checkInDomains.Count}个需要匹配的域名: {string.Join(", ", _checkInDomains)}");
-            }
-
             _random = new Random();
             LoadConfiguration();
         }
@@ -571,7 +556,7 @@ namespace BrowserTool.Utils
         //}
         private async Task<IntPtr> FindAndActivateImWindow()
         {
-            _logger.Debug($"开始查找窗口: 【{config.ImWindowTitle}】");
+            _logger.Debug($"开始查找窗口: 【{_config.ImWindowTitle}】");
 
             IntPtr windowHandle = IntPtr.Zero;
 
@@ -587,7 +572,7 @@ namespace BrowserTool.Utils
                         StringBuilder windowTitle = new StringBuilder(256);
                         GetWindowText(process.MainWindowHandle, windowTitle, 256);
 
-                        if (windowTitle.ToString().Contains(config.ImWindowTitle))
+                        if (windowTitle.ToString().Contains(_config.ImWindowTitle))
                         {
                             windowHandle = process.MainWindowHandle;
                             _logger.Debug($"找到目标窗口: {windowTitle} (句柄: {windowHandle})");
@@ -605,7 +590,7 @@ namespace BrowserTool.Utils
                                 StringBuilder title = new StringBuilder(256);
                                 GetWindowText(hWnd, title, 256);
 
-                                if (title.ToString().Contains(config.ImWindowTitle))
+                                if (title.ToString().Contains(_config.ImWindowTitle))
                                 {
                                     windowHandle = hWnd;
                                     _logger.Debug($"在进程 {process.ProcessName} 中找到窗口: {title}");
@@ -1514,14 +1499,6 @@ namespace BrowserTool.Utils
             return sb.ToString();
         }
 
-        /// <summary>
-        /// 获取日志文件路径
-        /// </summary>
-        /// <returns>日志文件完整路径</returns>
-        public string GetLogFilePath()
-        {
-            return _logFilePath;
-        }
 
         #endregion
     }

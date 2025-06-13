@@ -191,11 +191,6 @@ public partial class MainWindow : Window
     /// </summary>
     public bool IsDrawerOpen => _isDrawerOpen;
 
-    /// <summary>
-    /// 打卡页面域名列表（写死的成员变量）
-    /// </summary>
-    private readonly string[] _checkInDomains = { "attendance.company.com", "checkin.office.com", "www.google.com" };
-
     #endregion
 
     #region Windows API 声明
@@ -2173,6 +2168,11 @@ public partial class MainWindow : Window
                 _logger.Debug($"检查页面打卡结果: {currentUrl}");
 
                 // 检查域名是否为打卡相关域名
+                List<string> _checkInDomains = ConfigurationManager.AppSettings["CheckInDomains"]?
+               .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+               .Select(d => d.Trim())
+               .ToList() ?? new List<string>();
+
                 bool isDomainMatch = _checkInDomains.Any(domain => currentUrl.Contains(domain));
                 if (!isDomainMatch)
                 {
