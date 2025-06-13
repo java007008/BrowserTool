@@ -7,6 +7,7 @@ using System.Text;
 using System.IO;
 using System.Configuration;
 using System.Linq;
+using NLog;
 
 namespace BrowserTool.Utils 
 {
@@ -17,7 +18,7 @@ namespace BrowserTool.Utils
     /// </summary>
     public class AutoCheckInSimulator
     {
-        private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+        private static readonly ILogger _logger = LogManager.GetCurrentClassLogger();
 
         #region Win32 API 声明
 
@@ -414,17 +415,31 @@ namespace BrowserTool.Utils
                 // 从app.config读取配置 - 只读取指定的4个配置项
                 var appSettings = ConfigurationManager.AppSettings;
 
+                _logger.Debug("开始加载配置...");
+                _logger.Debug($"CheckInEnabled原始值: {appSettings["CheckInEnabled"]}");
+                _logger.Debug($"MorningCheckInTime原始值: {appSettings["MorningCheckInTime"]}");
+                _logger.Debug($"EveningCheckInTime原始值: {appSettings["EveningCheckInTime"]}");
+                _logger.Debug($"RandomMinutes原始值: {appSettings["RandomMinutes"]}");
+
                 if (bool.TryParse(appSettings["CheckInEnabled"], out bool enabled))
                     _config.IsEnabled = enabled;
+                else
+                    _logger.Warn($"无法解析CheckInEnabled值: {appSettings["CheckInEnabled"]}");
 
                 if (TimeSpan.TryParse(appSettings["MorningCheckInTime"], out TimeSpan morningTime))
                     _config.MorningTime = morningTime;
+                else
+                    _logger.Warn($"无法解析MorningCheckInTime值: {appSettings["MorningCheckInTime"]}");
 
                 if (TimeSpan.TryParse(appSettings["EveningCheckInTime"], out TimeSpan eveningTime))
                     _config.EveningTime = eveningTime;
+                else
+                    _logger.Warn($"无法解析EveningCheckInTime值: {appSettings["EveningCheckInTime"]}");
 
                 if (int.TryParse(appSettings["RandomMinutes"], out int randomMinutes))
                     _config.RandomMinutes = randomMinutes;
+                else
+                    _logger.Warn($"无法解析RandomMinutes值: {appSettings["RandomMinutes"]}");
 
                 // 其他配置使用默认值，不从配置文件读取
 
@@ -432,7 +447,13 @@ namespace BrowserTool.Utils
             }
             catch (Exception ex)
             {
-                _logger.Debug($"加载配置时发生异常: {ex.Message}");
+                _logger.Error(ex, $"加载配置时发生异常: {ex.Message}");
+                _logger.Error($"异常堆栈: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    _logger.Error($"内部异常: {ex.InnerException.Message}");
+                    _logger.Error($"内部异常堆栈: {ex.InnerException.StackTrace}");
+                }
                 _config = new CheckInConfig(); // 使用默认配置
             }
         }
@@ -1105,22 +1126,54 @@ namespace BrowserTool.Utils
         /// <summary>
         /// 解析坐标字符串
         /// </summary>
-        /// <param name="coordinates">坐标字符串，格式: "x,y"</param>
-        /// <param name="x">输出X坐标</param>
-        /// <param name="y">输出Y坐标</param>
-        /// <returns>解析是否成功</returns>
         private bool TryParseCoordinates(string coordinates, out int x, out int y)
         {
             x = y = 0;
 
-            if (string.IsNullOrWhiteSpace(coordinates))
-                return false;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(coordinates))
+                {
+                    _logger.Warn("坐标字符串为空");
+                    return false;
+                }
 
-            string[] parts = coordinates.Split(',');
-            if (parts.Length != 2)
-                return false;
+                _logger.Debug($"开始解析坐标: {coordinates}");
+                string[] parts = coordinates.Split(',');
+                
+                if (parts.Length != 2)
+                {
+                    _logger.Warn($"坐标格式不正确，期望格式为'x,y'，实际值: {coordinates}");
+                    return false;
+                }
 
-            return int.TryParse(parts[0].Trim(), out x) && int.TryParse(parts[1].Trim(), out y);
+                string xStr = parts[0].Trim();
+                string yStr = parts[1].Trim();
+
+                _logger.Debug($"解析X坐标: {xStr}");
+                _logger.Debug($"解析Y坐标: {yStr}");
+
+                bool xSuccess = int.TryParse(xStr, out x);
+                bool ySuccess = int.TryParse(yStr, out y);
+
+                if (!xSuccess)
+                    _logger.Warn($"无法解析X坐标: {xStr}");
+                if (!ySuccess)
+                    _logger.Warn($"无法解析Y坐标: {yStr}");
+
+                return xSuccess && ySuccess;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"解析坐标时发生异常: {ex.Message}");
+                _logger.Error($"异常堆栈: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    _logger.Error($"内部异常: {ex.InnerException.Message}");
+                    _logger.Error($"内部异常堆栈: {ex.InnerException.StackTrace}");
+                }
+                return false;
+            }
         }
 
         /// <summary>

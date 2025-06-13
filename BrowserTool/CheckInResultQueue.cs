@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using BrowserTool.Utils;
+using NLog;
 
 namespace BrowserTool
 {

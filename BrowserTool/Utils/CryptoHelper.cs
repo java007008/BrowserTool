@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 
 namespace BrowserTool.Utils
 {
@@ -57,6 +58,14 @@ namespace BrowserTool.Utils
         public static string Decrypt(string cipherText)
         {
             if (string.IsNullOrEmpty(cipherText)) return cipherText;
+
+            // 检查是否是有效的Base64字符串
+            if (!IsValidBase64String(cipherText))
+            {
+                System.Diagnostics.Debug.WriteLine($"无效的Base64字符串: {cipherText}");
+                return cipherText;
+            }
+
             try
             {
                 using (Aes aes = Aes.Create())
@@ -74,10 +83,44 @@ namespace BrowserTool.Utils
                     }
                 }
             }
-            catch
+            catch (FormatException ex)
             {
-                return cipherText; // 如果解密失败，返回原文
+                System.Diagnostics.Debug.WriteLine($"解密失败（格式错误）: {ex.Message}, 原文: {cipherText}");
+                return cipherText;
             }
+            catch (CryptographicException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"解密失败（加密错误）: {ex.Message}, 原文: {cipherText}");
+                return cipherText;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"解密失败（其他错误）: {ex.Message}, 原文: {cipherText}");
+                return cipherText;
+            }
+        }
+
+        private static bool IsValidBase64String(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return false;
+
+            // 检查长度是否为4的倍数
+            if (str.Length % 4 != 0) return false;
+
+            // 检查是否只包含有效的Base64字符
+            foreach (char c in str)
+            {
+                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '='))
+                {
+                    return false;
+                }
+            }
+
+            // 检查填充字符
+            int paddingCount = str.Count(c => c == '=');
+            if (paddingCount > 2) return false;
+
+            return true;
         }
     }
 } 

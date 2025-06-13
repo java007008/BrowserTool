@@ -31,6 +31,7 @@ using BrowserTool.Utils;
 using CefSharp;
 using CefSharp.Wpf;
 using Hardcodet.Wpf.TaskbarNotification;
+using NLog;
 
 namespace BrowserTool;
 
@@ -246,6 +247,15 @@ public partial class MainWindow : Window
 
         // 订阅登录状态变化事件
         LoginManager.OnLoginStatusChanged += OnLoginStatusChanged;
+
+        // 设置ContextMenu的PlacementTarget
+        TabContextMenu.Opened += (s, e) =>
+        {
+            if (TabContextMenu.PlacementTarget == null)
+            {
+                TabContextMenu.PlacementTarget = MainTabControl;
+            }
+        };
     }
 
     #endregion

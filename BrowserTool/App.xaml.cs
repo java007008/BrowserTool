@@ -16,6 +16,7 @@ using BrowserTool.Utils;
 using System.Windows.Controls;
 using CefSharp.Wpf;
 using FontStyle = System.Drawing.FontStyle;
+using NLog;
 
 namespace BrowserTool
 {

@@ -50,6 +50,7 @@ namespace BrowserTool.Database
                     entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
                     entity.Property(e => e.SortOrder).HasDefaultValue(0);
                     entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+                    entity.Property(e => e.IsDefaultExpanded).HasDefaultValue(false);
                     entity.Property(e => e.CreateTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
                     entity.Property(e => e.UpdateTime).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 });

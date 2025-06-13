@@ -30,34 +30,89 @@ namespace BrowserTool.Database
         {
             if (site == null) return;
 
-            if (!string.IsNullOrEmpty(site.Username))
+            try
             {
-                site.Username = CryptoHelper.Decrypt(site.Username);
+                // 检查DisplayName和Url是否已经是明文
+                bool isDisplayNameEncrypted = IsEncryptedString(site.DisplayName);
+                bool isUrlEncrypted = IsEncryptedString(site.Url);
+
+
+                if (!string.IsNullOrEmpty(site.Username))
+                {
+                    try { site.Username = CryptoHelper.Decrypt(site.Username); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密Username失败: {ex}"); }
+                }
+                if (!string.IsNullOrEmpty(site.Password))
+                {
+                    try { site.Password = CryptoHelper.Decrypt(site.Password); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密Password失败: {ex}"); }
+                }
+                if (!string.IsNullOrEmpty(site.CommonUsername))
+                {
+                    try { site.CommonUsername = CryptoHelper.Decrypt(site.CommonUsername); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密CommonUsername失败: {ex}"); }
+                }
+                if (!string.IsNullOrEmpty(site.CommonPassword))
+                {
+                    try { site.CommonPassword = CryptoHelper.Decrypt(site.CommonPassword); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密CommonPassword失败: {ex}"); }
+                }
+                if (!string.IsNullOrEmpty(site.GoogleSecret))
+                {
+                    try { site.GoogleSecret = CryptoHelper.Decrypt(site.GoogleSecret); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密GoogleSecret失败: {ex}"); }
+                }
+                if (!string.IsNullOrEmpty(site.Url) && isUrlEncrypted)
+                {
+                    try { site.Url = CryptoHelper.Decrypt(site.Url); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密Url失败: {ex}"); }
+                }
+                if (!string.IsNullOrEmpty(site.DisplayName) && isDisplayNameEncrypted)
+                {
+                    try { site.DisplayName = CryptoHelper.Decrypt(site.DisplayName); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"解密DisplayName失败: {ex}"); }
+                }
             }
-            if (!string.IsNullOrEmpty(site.Password))
+            catch (Exception ex)
             {
-                site.Password = CryptoHelper.Decrypt(site.Password);
+                System.Diagnostics.Debug.WriteLine($"解密站点信息时出错: {ex}");
             }
-            if (!string.IsNullOrEmpty(site.CommonUsername))
+        }
+
+        private static bool IsEncryptedString(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return false;
+
+            // 检查是否是有效的Base64字符串
+            if (!IsValidBase64String(str)) return false;
+
+            // 检查长度是否足够长（加密后的字符串通常较长）
+            if (str.Length < 16) return false;
+
+            return true;
+        }
+
+        private static bool IsValidBase64String(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return false;
+
+            // 检查长度是否为4的倍数
+            if (str.Length % 4 != 0) return false;
+
+            // 检查是否只包含有效的Base64字符
+            foreach (char c in str)
             {
-                site.CommonUsername = CryptoHelper.Decrypt(site.CommonUsername);
+                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '='))
+                {
+                    return false;
+                }
             }
-            if (!string.IsNullOrEmpty(site.CommonPassword))
-            {
-                site.CommonPassword = CryptoHelper.Decrypt(site.CommonPassword);
-            }
-            if (!string.IsNullOrEmpty(site.GoogleSecret))
-            {
-                site.GoogleSecret = CryptoHelper.Decrypt(site.GoogleSecret);
-            }
-            if (!string.IsNullOrEmpty(site.Url))
-            {
-                site.Url = CryptoHelper.Decrypt(site.Url);
-            }
-            if (!string.IsNullOrEmpty(site.DisplayName))
-            {
-                site.DisplayName = CryptoHelper.Decrypt(site.DisplayName);
-            }
+
+            // 检查填充字符
+            int paddingCount = str.Count(c => c == '=');
+            if (paddingCount > 2) return false;
+
+            return true;
         }
 
         /// <summary>
@@ -288,7 +343,6 @@ namespace BrowserTool.Database
 
                     // 检查是否有任何分组
                     var groupCount = context.SiteGroups.Count();
-                    System.Diagnostics.Debug.WriteLine($"数据库中的分组总数: {groupCount}");
 
                     // 先获取所有分组，不使用Include
                     var groups = context.SiteGroups
@@ -299,18 +353,67 @@ namespace BrowserTool.Database
                     // 手动加载每个分组的站点并解密
                     foreach (var group in groups)
                     {
-                        group.Sites = context.SiteItems
-                            .Where(s => s.GroupId == group.Id)
-                            .OrderBy(s => s.SortOrder)
-                            .ToList();
-
-                        // 解密站点敏感信息
-                        if (group.Sites != null)
+                        try
                         {
-                            DecryptSiteInfoBatch(group.Sites);
-                        }
+                            // 确保IsDefaultExpanded有有效值
+                            if (group.IsDefaultExpanded != true && group.IsDefaultExpanded != false)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"警告：分组 {group.Name} (ID: {group.Id}) 的IsDefaultExpanded值无效，设置为默认值false");
+                                group.IsDefaultExpanded = false;
+                            }
 
-                        System.Diagnostics.Debug.WriteLine($"分组: {group.Name}, ID: {group.Id}, 站点数: {group.Sites?.Count ?? 0}, IsDefaultExpanded: {group.IsDefaultExpanded}");
+                            // 获取站点数据
+                            var sites = context.SiteItems
+                                .Where(s => s.GroupId == group.Id)
+                                .OrderBy(s => s.SortOrder)
+                                .ToList();
+
+
+                            // 检查每个站点的数据
+                            foreach (var site in sites)
+                            {
+                                try
+                                {
+                                    
+                                    // 确保所有必需字段都有有效值
+                                    if (string.IsNullOrEmpty(site.DisplayName))
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"警告：站点 ID={site.Id} 的DisplayName为空");
+                                        site.DisplayName = "未命名站点";
+                                    }
+                                    if (string.IsNullOrEmpty(site.Url))
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"警告：站点 ID={site.Id} 的Url为空");
+                                        site.Url = "about:blank";
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"处理站点 ID={site.Id} 时出错: {ex}");
+                                }
+                            }
+
+                            group.Sites = sites;
+
+                            // 解密站点敏感信息
+                            if (group.Sites != null)
+                            {
+                                try
+                                {
+                                    DecryptSiteInfoBatch(group.Sites);
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"解密分组 {group.Name} 的站点信息时出错: {ex}");
+                                }
+                            }
+
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"处理分组 {group.Name} (ID: {group.Id}) 时出错: {ex}");
+                            throw;
+                        }
                     }
 
                     return groups;
