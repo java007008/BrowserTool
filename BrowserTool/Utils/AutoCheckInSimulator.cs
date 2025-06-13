@@ -334,7 +334,7 @@ namespace BrowserTool.Utils
         private CheckInConfig _config;
         /// <summary>随机数生成器</summary>
         private Random _random;
-        /// <summary>日志文件路径</summary>
+        private WindowFinder windowFinder;
 
         #endregion
 
@@ -386,6 +386,7 @@ namespace BrowserTool.Utils
         {
             _random = new Random();
             LoadConfiguration();
+            windowFinder = new WindowFinder(_logger);
         }
 
         #endregion
@@ -1137,7 +1138,7 @@ namespace BrowserTool.Utils
             try
             {
                 // 步骤1: 查找并置顶IM窗口
-                IntPtr imWindow = await FindAndActivateImWindow();
+                IntPtr imWindow = await windowFinder.FindAndActivateImWindowEnhanced(DEFAULT_IM_WINDOW_TITLE);
                 if (imWindow == IntPtr.Zero)
                 {
                     return CheckInStepResult.Failure(1, "无法找到IM窗口");
