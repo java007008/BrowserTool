@@ -22,6 +22,7 @@ namespace BrowserTool.Browser
         private const int CMD_GO_TO_URL_NEW_WINDOW = 26506;
         private const int CMD_REFRESH = 26507;
         private const int CMD_OPEN_LINK_NEW_TAB = 26508;
+        private const int CMD_COPY_SELECTION = 26509;
 
         public void OnBeforeContextMenu(IWebBrowser browserControl, IBrowser browser, IFrame frame, IContextMenuParams parameters, IMenuModel model)
         {
@@ -32,6 +33,13 @@ namespace BrowserTool.Browser
             if (!string.IsNullOrEmpty(parameters.LinkUrl))
             {
                 model.AddItem((CefMenuCommand)CMD_OPEN_LINK_NEW_TAB, "在新标签页中打开");
+                model.AddSeparator();
+            }
+            
+            // 如果有选中的文本，添加复制选项
+            if (!string.IsNullOrEmpty(parameters.SelectionText))
+            {
+                model.AddItem((CefMenuCommand)CMD_COPY_SELECTION, "复制选中内容");
                 model.AddSeparator();
             }
             
@@ -135,6 +143,15 @@ namespace BrowserTool.Browser
             {
                 // 刷新页面
                 browser.Reload();
+                return true;
+            }
+            if ((int)commandId == CMD_COPY_SELECTION)
+            {
+                // 复制选中的内容
+                if (!string.IsNullOrEmpty(parameters.SelectionText))
+                {
+                    Clipboard.SetText(parameters.SelectionText);
+                }
                 return true;
             }
             return false;
