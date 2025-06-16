@@ -9,6 +9,7 @@ using System.Configuration;
 using System.Linq;
 using NLog;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace BrowserTool.Utils 
 {
@@ -335,6 +336,10 @@ namespace BrowserTool.Utils
         /// <summary>随机数生成器</summary>
         private Random _random;
         private WindowFinder windowFinder;
+        /// <summary>打卡记录</summary>
+        private CheckInRecord _checkInRecord;
+        /// <summary>打卡记录文件路径</summary>
+        private readonly string _checkInRecordPath = @"CEF\checkin_record.json";
 
         #endregion
 
@@ -375,6 +380,59 @@ namespace BrowserTool.Utils
             public ClickMethod DefaultClickMethod { get; set; } = ClickMethod.Auto;
         }
 
+        /// <summary>
+        /// 打卡记录
+        /// </summary>
+        private class CheckInRecord
+        {
+            /// <summary>早上打卡时间</summary>
+            public DateTime? MorningCheckIn { get; set; }
+            /// <summary>晚上打卡时间</summary>
+            public DateTime? EveningCheckIn { get; set; }
+            /// <summary>记录日期</summary>
+            public DateTime RecordDate { get; set; }
+
+            /// <summary>
+            /// 检查是否已经完成指定类型的打卡
+            /// </summary>
+            /// <param name="isMorning">是否是早上打卡</param>
+            /// <returns>是否已完成打卡</returns>
+            public bool HasCheckedIn(bool isMorning)
+            {
+                // 检查记录是否是今天的
+                if (RecordDate.Date != DateTime.Now.Date)
+                {
+                    return false;
+                }
+
+                return isMorning ? MorningCheckIn.HasValue : EveningCheckIn.HasValue;
+            }
+
+            /// <summary>
+            /// 记录打卡时间
+            /// </summary>
+            /// <param name="isMorning">是否是早上打卡</param>
+            public void RecordCheckIn(bool isMorning)
+            {
+                if (RecordDate.Date != DateTime.Now.Date)
+                {
+                    // 如果是新的一天，重置记录
+                    RecordDate = DateTime.Now.Date;
+                    MorningCheckIn = null;
+                    EveningCheckIn = null;
+                }
+
+                if (isMorning)
+                {
+                    MorningCheckIn = DateTime.Now;
+                }
+                else
+                {
+                    EveningCheckIn = DateTime.Now;
+                }
+            }
+        }
+
         #endregion
 
         #region 构造函数
@@ -387,6 +445,7 @@ namespace BrowserTool.Utils
             _random = new Random();
             LoadConfiguration();
             windowFinder = new WindowFinder(_logger);
+            LoadCheckInRecord();
         }
 
         #endregion
@@ -1315,6 +1374,60 @@ namespace BrowserTool.Utils
 
         #endregion
 
+        #region 打卡记录管理
+
+        /// <summary>
+        /// 加载打卡记录
+        /// </summary>
+        private void LoadCheckInRecord()
+        {
+            try
+            {
+                if (File.Exists(_checkInRecordPath))
+                {
+                    string json = File.ReadAllText(_checkInRecordPath);
+                    _checkInRecord = JsonSerializer.Deserialize<CheckInRecord>(json);
+                    
+                    // 检查是否是今天的记录
+                    if (_checkInRecord.RecordDate.Date != DateTime.Now.Date)
+                    {
+                        _logger.Debug("检测到新的一天，重置打卡记录");
+                        _checkInRecord = new CheckInRecord { RecordDate = DateTime.Now.Date };
+                        SaveCheckInRecord();
+                    }
+                }
+                else
+                {
+                    _checkInRecord = new CheckInRecord { RecordDate = DateTime.Now.Date };
+                    SaveCheckInRecord();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "加载打卡记录时发生异常，创建新的记录");
+                _checkInRecord = new CheckInRecord { RecordDate = DateTime.Now.Date };
+                SaveCheckInRecord();
+            }
+        }
+
+        /// <summary>
+        /// 保存打卡记录
+        /// </summary>
+        private void SaveCheckInRecord()
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(_checkInRecord);
+                File.WriteAllText(_checkInRecordPath, json);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "保存打卡记录时发生异常");
+            }
+        }
+
+        #endregion
+
         #region 公共方法
 
         /// <summary>
@@ -1356,7 +1469,20 @@ namespace BrowserTool.Utils
 
                         if (!_cancellationTokenSource.Token.IsCancellationRequested)
                         {
-                            await ExecuteCheckInProcess();
+                            // 检查是否需要执行打卡
+                            bool isMorningCheckIn = DateTime.Now.TimeOfDay < _config.MorningTime.Add(TimeSpan.FromMinutes(_config.RandomMinutes));
+                            
+                            if (!_checkInRecord.HasCheckedIn(isMorningCheckIn))
+                            {
+                                _logger.Debug($"执行{(isMorningCheckIn ? "早上" : "晚上")}打卡");
+                                await ExecuteCheckInProcess();
+                                _checkInRecord.RecordCheckIn(isMorningCheckIn);
+                                SaveCheckInRecord(); // 保存打卡记录
+                            }
+                            else
+                            {
+                                _logger.Debug($"今日{(isMorningCheckIn ? "早上" : "晚上")}已打卡，跳过执行");
+                            }
                         }
                     }
                 }
